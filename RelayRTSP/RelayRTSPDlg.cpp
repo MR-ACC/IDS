@@ -100,7 +100,7 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	TaskScheduler* scheduler = BasicTaskScheduler::createNew();
 	UsageEnvironment* env = BasicUsageEnvironment::createNew(*scheduler);
 
-
+	  
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
