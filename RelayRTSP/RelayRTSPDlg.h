@@ -34,4 +34,15 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
+
+;private:
+	TaskScheduler* scheduler;
+	UsageEnvironment* env;
+
+
+private:
+	void startReplicaUDPSink(StreamReplicator* replicator, char const* outputAddressStr, portNumBits outputPortNum); // forward
+	void startReplicaFileSink(StreamReplicator* replicator, char const* outputFileName); // forward
+public:
+	afx_msg void OnClose();
 };

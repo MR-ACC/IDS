@@ -6,7 +6,7 @@
 #include "RelayRTSP.h"
 #include "RelayRTSPDlg.h"
 #include "afxdialogex.h"
-
+#include <GroupsockHelper.hh>
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -62,6 +62,7 @@ BEGIN_MESSAGE_MAP(CRelayRTSPDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_WM_CLOSE()
 END_MESSAGE_MAP()
 
 
@@ -97,10 +98,11 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO:  在此添加额外的初始化代码
-	TaskScheduler* scheduler = BasicTaskScheduler::createNew();
-	UsageEnvironment* env = BasicUsageEnvironment::createNew(*scheduler);
+	scheduler = BasicTaskScheduler::createNew();
+	env = BasicUsageEnvironment::createNew(*scheduler);
 
-	//test  
+	
+	  
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -153,3 +155,44 @@ HCURSOR CRelayRTSPDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+void CRelayRTSPDlg::startReplicaFileSink(StreamReplicator* replicator, char const* outputFileName)
+{
+	// Begin by creating an input stream from our replicator:
+	FramedSource* source = replicator->createStreamReplica();
+
+	// Then create a 'file sink' object to receive thie replica stream:
+	MediaSink* sink = FileSink::createNew(*env, outputFileName);
+
+	// Now, start playing, feeding the sink object from the source:
+	sink->startPlaying(*source, NULL, NULL);
+}
+
+void CRelayRTSPDlg::startReplicaUDPSink(StreamReplicator* replicator, char const* outputAddressStr, portNumBits outputPortNum)
+{
+	// Begin by creating an input stream from our replicator:
+	FramedSource* source = replicator->createStreamReplica();
+
+	// Create a 'groupsock' for the destination address and port:
+	struct in_addr outputAddress;
+	outputAddress.s_addr = our_inet_addr(outputAddressStr);
+
+	Port const outputPort(outputPortNum);
+	unsigned char const outputTTL = 255;
+
+	Groupsock* outputGroupsock = new Groupsock(*env, outputAddress, outputPort, outputTTL);
+
+	// Then create a liveMedia 'sink' object, encapsulating this groupsock:
+	unsigned const maxPacketSize = 65536; // allow for large UDP packets
+	MediaSink* sink = BasicUDPSink::createNew(*env, outputGroupsock, maxPacketSize);
+
+	// Now, start playing, feeding the sink object from the source:
+	sink->startPlaying(*source, NULL, NULL);
+}
+
+
+void CRelayRTSPDlg::OnClose()
+{
+	// TODO:  在此添加消息处理程序代码和/或调用默认值
+
+	CDialogEx::OnClose();
+}
