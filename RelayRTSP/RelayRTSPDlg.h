@@ -2,10 +2,11 @@
 // RelayRTSPDlg.h : Í·ÎÄ¼þ
 //
 
-#include "Groupsock.hh"
-#include "UsageEnvironment.hh"
-#include "BasicUsageEnvironment.hh"
+#include <GroupsockHelper.hh>
 #include "liveMedia.hh"
+#include "BasicUsageEnvironment.hh"
+#include "UsageEnvironment.hh"
+#include "Groupsock.hh"
 
 #pragma once
 
@@ -33,11 +34,12 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
-	DECLARE_MESSAGE_MAP()
+	DECLARE_MESSAGE_MAP();
 
-;private:
+private:
 	TaskScheduler* scheduler;
 	UsageEnvironment* env;
+
 
 
 private:
@@ -45,4 +47,5 @@ private:
 	void startReplicaFileSink(StreamReplicator* replicator, char const* outputFileName); // forward
 public:
 	afx_msg void OnClose();
+	afx_msg void On_Click_LoadIniFile();
 };

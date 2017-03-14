@@ -6,7 +6,8 @@
 #include "RelayRTSP.h"
 #include "RelayRTSPDlg.h"
 #include "afxdialogex.h"
-#include <GroupsockHelper.hh>
+
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -63,6 +64,7 @@ BEGIN_MESSAGE_MAP(CRelayRTSPDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_WM_CLOSE()
+	ON_BN_CLICKED(IDC_LOAD_INIFILE, &CRelayRTSPDlg::On_Click_LoadIniFile)
 END_MESSAGE_MAP()
 
 
@@ -97,11 +99,25 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	SetIcon(m_hIcon, TRUE);			// 设置大图标
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
-	// TODO:  在此添加额外的初始化代码
+	// TODO:  在此添加额外的初始化代
+
+	//读取默认的ini文件，配置NVR和RTSP服务
+	int n =  ::GetPrivateProfileInt("RTSP", "Port1", 234, "./default.ini");
+
+	//初始化NVR采集相关参数
+
+	//初始化RTSP服务
 	scheduler = BasicTaskScheduler::createNew();
 	env = BasicUsageEnvironment::createNew(*scheduler);
 
-	
+	//添加用户访问控制（每增加一个客户端连接，就需要增加一条UserRecord）
+	UserAuthenticationDatabase *auThDB = NULL;
+#ifdef ACCESS_CONTROL
+	authDB = new UserAuthenticationDatabase;
+	authDB->addUserRecord("system", "system"); // replace these with real strings
+#endif
+
+	RTSPServer * rtspServer = RTSPServer::createNew(*env, 6002, auThDB);
 	  
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -195,4 +211,12 @@ void CRelayRTSPDlg::OnClose()
 	// TODO:  在此添加消息处理程序代码和/或调用默认值
 
 	CDialogEx::OnClose();
+}
+
+
+void CRelayRTSPDlg::On_Click_LoadIniFile()
+{
+	// TODO:  在此添加控件通知处理程序代码
+	CFileDialog dlgFile(true);
+	dlgFile.DoModal();
 }
