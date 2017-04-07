@@ -7,6 +7,8 @@
 #include "BasicUsageEnvironment.hh"
 #include "UsageEnvironment.hh"
 #include "Groupsock.hh"
+#include "inc\tmTransDefine.h"
+#include "inc\tmControlClient.h"
 
 #pragma once
 
@@ -36,11 +38,21 @@ protected:
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP();
 
-private:
+private:	
+	//RTSP服务相关
 	TaskScheduler* scheduler;
 	UsageEnvironment* env;
+	int nCameraIP;
 
+	//NVR相关
+	HANDLE hRealStream;		//连接句柄
+	tmPlayRealStreamCfg_t realStream;
+	int nNVRChannel;
 
+	//数据流头信息
+	const int STREAM_HEAD_SIZE = 1024 * 4;
+	BYTE *pStreamHead;
+	int nStreamHeadSize;
 
 private:
 	void startReplicaUDPSink(StreamReplicator* replicator, char const* outputAddressStr, portNumBits outputPortNum); // forward
@@ -48,4 +60,9 @@ private:
 public:
 	afx_msg void OnClose();
 	afx_msg void On_Click_LoadIniFile();
+
+	//数据流回调相关
+	static int WINAPI	OnStreamDataCallBack(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo, void *context);
+	int 				OnStreamData(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo);
+
 };

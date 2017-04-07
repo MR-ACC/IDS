@@ -43,8 +43,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\live\BasicUsageEnvironment\include;C:\live\groupsock\include;C:\live\liveMedia\include;C:\live\UsageEnvironment\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\live\BasicUsageEnvironment;C:\live\groupsock;C:\live\liveMedia;C:\live\UsageEnvironment;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\live\BasicUsageEnvironment\include;C:\live\groupsock\include;C:\live\liveMedia\include;C:\live\UsageEnvironment\include;$(ProjectDir)\inc;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\live\BasicUsageEnvironment;C:\live\groupsock;C:\live\liveMedia;C:\live\UsageEnvironment;$(ProjectDir)\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -61,7 +61,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libUsageEnvironment.lib;libliveMedia.lib;libgroupsock.lib;libBasicUsageEnvironment.lib;</AdditionalDependencies>
+      <AdditionalDependencies>libUsageEnvironment.lib;libliveMedia.lib;libgroupsock.lib;libBasicUsageEnvironment.lib;tmControlClient.lib</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>

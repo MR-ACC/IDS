@@ -7,7 +7,6 @@
 #include "RelayRTSPDlg.h"
 #include "afxdialogex.h"
 
-
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -20,13 +19,13 @@ class CAboutDlg : public CDialogEx
 public:
 	CAboutDlg();
 
-// 对话框数据
+	// 对话框数据
 	enum { IDD = IDD_ABOUTBOX };
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
 
-// 实现
+	// 实现
 protected:
 	DECLARE_MESSAGE_MAP()
 };
@@ -49,7 +48,7 @@ END_MESSAGE_MAP()
 
 
 CRelayRTSPDlg::CRelayRTSPDlg(CWnd* pParent /*=NULL*/)
-	: CDialogEx(CRelayRTSPDlg::IDD, pParent)
+: CDialogEx(CRelayRTSPDlg::IDD, pParent), nNVRChannel(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -102,13 +101,38 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	// TODO:  在此添加额外的初始化代
 
 	//读取默认的ini文件，配置NVR和RTSP服务
-	int n =  ::GetPrivateProfileInt("RTSP", "Port1", 234, "./default.ini");
-
+	//int n =  ::GetPrivateProfileInt("RTSP", "Port1", 234, "./default.ini");
+	//char ss[128];
+	//::GetPrivateProfileString("NVR1", "IP","default",ss,128,"./NVR-test.ini");
 	//初始化NVR采集相关参数
 
+	//NVR相关
+	pStreamHead = new BYTE[STREAM_HEAD_SIZE];
+	// 打开相机
+	hRealStream = TMCC_Init(TMCC_INITTYPE_REALSTREAM);
+	::TMCC_RegisterStreamCallBack(hRealStream, OnStreamDataCallBack, this);
+	TMCC_SetStreamBufferTime(hRealStream, 500);
+	memset(&realStream, 0, sizeof(tmPlayRealStreamCfg_t));
+	realStream.dwSize = sizeof(tmPlayRealStreamCfg_t);
+	sprintf_s(realStream.szAddress, "192.168.1.5");
+	sprintf_s(realStream.szUser, "system");
+	sprintf_s(realStream.szPass, "system");
+	realStream.iPort = 6002;
+	realStream.byChannel = 0;		// NVR等设备会有多通道，通道编号从0开始
+	realStream.byStream = 0;		// 码流号，0为主码流，1为从码流，2为第三码流，依次类推		
+	realStream.byForceDecode = 0;	// byForceDecode=1表示强制解码m_ctrlImage.GetSafeHwnd()
+	realStream.byConnectType = 0;	// 连接类型，设备会根据这个标记启用对应的传输协议		
+	realStream.byMultiStream = 0;	// 此值有效忽略byStream，同时取得多码流数据，用于连接鱼眼全景设备
+
+	if (TMCC_ERR_SUCCESS != TMCC_ConnectStream(hRealStream, &realStream, NULL))
+	{
+		MessageBox("连接视频失败....");
+	}
+
 	//初始化RTSP服务
-	scheduler = BasicTaskScheduler::createNew();
-	env = BasicUsageEnvironment::createNew(*scheduler);
+	//scheduler = BasicTaskScheduler::createNew();
+	//env = BasicUsageEnvironment::createNew(*scheduler);
+	//RTSPServer * rtspServer = RTSPServer::createNew(*env, 6002, auThDB);
 
 	//添加用户访问控制（每增加一个客户端连接，就需要增加一条UserRecord）
 	UserAuthenticationDatabase *auThDB = NULL;
@@ -117,9 +141,51 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	authDB->addUserRecord("system", "system"); // replace these with real strings
 #endif
 
-	RTSPServer * rtspServer = RTSPServer::createNew(*env, 6002, auThDB);
-	  
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
+}
+
+int WINAPI CRelayRTSPDlg::OnStreamDataCallBack(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo, void *context)
+{
+	return ((CRelayRTSPDlg*)context)->OnStreamData(hTmCC, pStreamInfo);
+}
+
+///************* 视频回调函数    ***********
+//在回调函数中处理H.264数据帧
+//每到达1个数据帧，则将此数据帧直接打包到RTSP服务器中
+//注意H.264数据帧在SDK与RTSP中打包/解包的区别
+// ********************
+int CRelayRTSPDlg::OnStreamData(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo)
+{
+	//headRealStream = (tmAvInfo_t)pStreamHead;
+	//TRACE(headRealStream.byStreamId);
+	//收到视频数据
+	if (0 == pStreamInfo->byFrameType)
+	{
+		TRACE("收到视频数据类型:%d，流ID：%d\n", pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
+
+		//加入到RTSP服务器
+		switch (nNVRChannel)
+		{
+		default:
+			break;
+		}
+	}
+
+	//收到音频数据
+	if (1 == pStreamInfo->byFrameType)
+	{
+		TRACE("收到音频数据类型:%d，流ID：%d\n", pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
+	}
+
+	//收到数据流头
+	if (2 == pStreamInfo->byFrameType)
+	{
+		TRACE("收到数据流头:%d帧\n", pStreamInfo->byFrameType);
+		memcpy(pStreamHead, pStreamInfo->pBuffer, pStreamInfo->iBufferSize);
+		nStreamHeadSize = pStreamInfo->iBufferSize;
+	}
+
+	return -1;
 }
 
 void CRelayRTSPDlg::OnSysCommand(UINT nID, LPARAM lParam)
@@ -205,14 +271,23 @@ void CRelayRTSPDlg::startReplicaUDPSink(StreamReplicator* replicator, char const
 	sink->startPlaying(*source, NULL, NULL);
 }
 
-
 void CRelayRTSPDlg::OnClose()
 {
 	// TODO:  在此添加消息处理程序代码和/或调用默认值
 
+	//释放NVR资源
+	TMCC_Done(hRealStream);
+	hRealStream = NULL;
+
+	//释放RTSP服务资源
+	//BasicTaskScheduler::
+
+	if (False == env->reclaim())
+	{
+		AfxMessageBox("RTSP服务内存资源释放错误");
+	}
 	CDialogEx::OnClose();
 }
-
 
 void CRelayRTSPDlg::On_Click_LoadIniFile()
 {
