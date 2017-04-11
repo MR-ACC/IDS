@@ -114,7 +114,7 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	TMCC_SetStreamBufferTime(hRealStream, 500);
 	memset(&realStream, 0, sizeof(tmPlayRealStreamCfg_t));
 	realStream.dwSize = sizeof(tmPlayRealStreamCfg_t);
-	sprintf_s(realStream.szAddress, "192.168.1.5");
+	sprintf_s(realStream.szAddress, "192.168.1.4");
 	sprintf_s(realStream.szUser, "system");
 	sprintf_s(realStream.szPass, "system");
 	realStream.iPort = 6002;
@@ -161,9 +161,9 @@ int CRelayRTSPDlg::OnStreamData(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo)
 	//收到视频数据
 	if (0 == pStreamInfo->byFrameType)
 	{
-		TRACE("收到视频数据类型:%d，流ID：%d\n", pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
+		TRACE("收到视频数据   类型:%d，流ID：%d\n", pStreamInfo->byStreamNo, pStreamInfo->dwStreamId);
 
-		//加入到RTSP服务器
+		//加入视频帧到RTSP服务器数据缓冲区（如何确定不同通道来的视频流？？）
 		switch (nNVRChannel)
 		{
 		default:

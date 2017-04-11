@@ -9,6 +9,8 @@
 #include "Groupsock.hh"
 #include "inc\tmTransDefine.h"
 #include "inc\tmControlClient.h"
+#include "H264LiveVideoServerMediaSubssion.hh"
+#include "H264FramedLiveSource.hh"
 
 #pragma once
 

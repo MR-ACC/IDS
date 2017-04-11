@@ -106,6 +106,8 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="H264FramedLiveSource.hh" />
+    <ClInclude Include="H264LiveVideoServerMediaSubssion.hh" />
     <ClInclude Include="RelayRTSP.h" />
     <ClInclude Include="RelayRTSPDlg.h" />
     <ClInclude Include="Resource.h" />
@@ -113,6 +115,12 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="H264FramedLiveSource.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="H264LiveVideoServerMediaSubssion.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="RelayRTSP.cpp" />
     <ClCompile Include="RelayRTSPDlg.cpp" />
     <ClCompile Include="stdafx.cpp">
