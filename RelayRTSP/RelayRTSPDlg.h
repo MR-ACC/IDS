@@ -14,6 +14,15 @@
 
 #pragma once
 
+//文件列表
+typedef struct tagFileList_t
+{
+	struct tagFileList_t*	prev;
+	struct tagFileList_t*	next;
+	tmFindFileCfg_t			file;
+	int						item;
+	BOOL					bImage;
+}FileList_t;
 
 // CRelayRTSPDlg 对话框
 class CRelayRTSPDlg : public CDialogEx
@@ -46,25 +55,55 @@ private:
 	UsageEnvironment* env;
 	int nCameraIP;
 
-	//NVR相关
-	HANDLE hRealStream;		//连接句柄
-	tmPlayRealStreamCfg_t realStream;
-	int nNVRChannel;
+	//登陆相关
+	HANDLE hLogin;		//连接句柄
+	tmConnectInfo_t  tmLogin;
+
 
 	//数据流头信息
 	const int STREAM_HEAD_SIZE = 1024 * 4;
 	BYTE *pStreamHead;
 	int nStreamHeadSize;
 
+	//RTSP服务相关
+	Boolean reuseFirstSource;	//如果为“true”则其他接入的客户端跟第一个客户端看到一样的视频流，否则\
+		其他客户端接入的时候将重新播放
+	char const* streamName = "h264ESVideoTest";
+	char const* descriptionString = "Session streamed by \"RTSP Relay Server!\"";
+	int datasize;//数据区长度
+	unsigned char* databuf;//数据区指针
+	bool dosent;//rtsp发送标志位，为true则发送，否则退出
+
 private:
 	void startReplicaUDPSink(StreamReplicator* replicator, char const* outputAddressStr, portNumBits outputPortNum); // forward
 	void startReplicaFileSink(StreamReplicator* replicator, char const* outputFileName); // forward
+
+protected:
+	static UINT			FileSearchProc(void* lpThis);
+	UINT				FileSearchProcLoop(int iControlType);
+
+	//加入列表
+	FileList_t*			InsertList(tmFindFileCfg_t* pFind, BOOL bImage);
+
+	//文件列表
+	FileList_t*		m_pFileList;
+
 public:
 	afx_msg void OnClose();
 	afx_msg void On_Click_LoadIniFile();
 
 	//数据流回调相关
-	static int WINAPI	OnStreamDataCallBack(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo, void *context);
 	int 				OnStreamData(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo);
+	static int WINAPI	OnLoginCallBack(HANDLE hTmCC, BOOL bConnect, unsigned int dwResult, void *context);
 
+	// NVR视频通道号
+	int m_nNVRChannel;
+	CComboBox m_combNVRChannel;
+	CDateTimeCtrl m_ctrlDateStart, m_ctrlTimeStart, m_ctrlDateEnd, m_ctrlTimeEnd;
+	afx_msg void OnClickedConnectToNVR();
+	afx_msg void OnClickedDisconnectFromNVR();
+	CString m_strNVRIPAddress;
+	CListCtrl m_listFile;
+	afx_msg void OnClickedSearchFile();
+	afx_msg void OnClickedStartRtsp();
 };

@@ -49,8 +49,7 @@ END_MESSAGE_MAP()
 
 CRelayRTSPDlg::CRelayRTSPDlg(CWnd* pParent /*=NULL*/)
 : CDialogEx(CRelayRTSPDlg::IDD, pParent), env(NULL)
-, m_nNVRChannel(0)
-, m_strNVRIPAddress(_T("")), m_pFileList(NULL)
+, m_combNVRChannel(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -59,14 +58,7 @@ void CRelayRTSPDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_CBIndex(pDX, IDC_NVRCHANNEL, m_nNVRChannel);
-	DDV_MinMaxInt(pDX, m_nNVRChannel, 0, 31);
-	DDX_Control(pDX, IDC_NVRCHANNEL, m_combNVRChannel);
-	DDX_Control(pDX, IDC_DATETIMEPICKER2, m_ctrlDateStart);
-	DDX_Control(pDX, IDC_DATETIMEPICKER3, m_ctrlTimeStart);
-	DDX_Control(pDX, IDC_DATETIMEPICKER4, m_ctrlDateEnd);
-	DDX_Control(pDX, IDC_DATETIMEPICKER5, m_ctrlTimeEnd);
-	DDX_Control(pDX, IDC_FILELIST, m_listFile);
-	DDX_Text(pDX, IDC_NVR_IPADDRESS1, m_strNVRIPAddress);
+	DDV_MinMaxInt(pDX, m_combNVRChannel, 1, 32);
 }
 
 BEGIN_MESSAGE_MAP(CRelayRTSPDlg, CDialogEx)
@@ -74,10 +66,7 @@ BEGIN_MESSAGE_MAP(CRelayRTSPDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_WM_CLOSE()
-	ON_BN_CLICKED(IDC_CONNECT, &CRelayRTSPDlg::OnClickedConnectToNVR)
-	ON_BN_CLICKED(IDC_DISCONNECT, &CRelayRTSPDlg::OnClickedDisconnectFromNVR)
-	ON_BN_CLICKED(IDC_SEARCH_FILE, &CRelayRTSPDlg::OnClickedSearchFile)
-	ON_BN_CLICKED(IDC_START_RTSP, &CRelayRTSPDlg::OnClickedStartRtsp)
+	ON_BN_CLICKED(IDC_LOAD_INIFILE, &CRelayRTSPDlg::On_Click_LoadIniFile)
 END_MESSAGE_MAP()
 
 
@@ -124,31 +113,9 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 
 	// TODO:  在此添加额外的初始化代
 	
-
-	//界面初始化
-	((CButton*)GetDlgItem(IDC_DISCONNECT))->EnableWindow(false);
-	((CButton*)GetDlgItem(IDC_SEARCH_FILE))->EnableWindow(false);
-	((CButton*)GetDlgItem(IDC_START_RTSP))->EnableWindow(false);
-	//DWORD dwStyle = m_listFile.GetStyle();
-	m_listFile.SetExtendedStyle(m_listFile.GetExtendedStyle() | LVS_EX_FULLROWSELECT);
-	m_listFile.InsertColumn(0, "文件列表", LVCFMT_LEFT, 500, 0);
-
-	//设置初始IP
-	m_strNVRIPAddress = "192.168.1.12";
-	((CEdit*)(GetDlgItem(IDC_NVR_IPADDRESS1)))->SetWindowTextA(m_strNVRIPAddress);
-
 	//初始化通道号
-	m_combNVRChannel.ResetContent();
-	//((CComboBox*)GetDlgItem(IDC_NVRCHANNEL))->ResetContent();
-	CString strTemp = "";
-	for (int i = 0; i < 32; i++)
-	{
-		strTemp.Format("%d", i+1);
-		m_combNVRChannel.InsertString(-1, strTemp);
-	}
-	m_combNVRChannel.SetCurSel(0);
-	m_combNVRChannel.UpdateData(TRUE);
-	
+	GetDlgItem(IDC_NVRCHANNEL);
+
 	//读取默认的ini文件，配置NVR和RTSP服务
 	//int n =  ::GetPrivateProfileInt("RTSP", "Port1", 234, "./default.ini");
 	//char ss[128];
@@ -167,6 +134,23 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 		TMCC_DisConnect(hLogin);
 	}
 
+	memset(&tmLogin, 0, sizeof(tmConnectInfo_t));
+	tmLogin.dwSize = sizeof(tmConnectCfg_t);
+	tmLogin.iPort = 6002;
+	sprintf(tmLogin.pIp, "192.168.1.125");
+	sprintf(tmLogin.szUser, "system");
+	sprintf(tmLogin.szPass, "system");
+	//设置连接超时值
+	TMCC_SetTimeOut(hLogin, 3000);
+	//注册登录状态回调
+	//TMCC_RegisterConnectCallBack(hLogin, OnLoginCallBack, this);
+	if (TMCC_ERR_SUCCESS != TMCC_Connect(hLogin, &tmLogin, FALSE))
+	{
+		//登录失败
+		MessageBox("登陆NVR设备失败!");
+		return 0;
+	}
+	
 	//初始化RTSP服务
 	reuseFirstSource = False;
 	scheduler = BasicTaskScheduler::createNew();
@@ -198,10 +182,10 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
-int WINAPI	CRelayRTSPDlg::OnLoginCallBack(HANDLE hTmCC, BOOL bConnect, unsigned int dwResult, void *context)
-{
-	return 0;
-}
+//static int WINAPI	OnLoginCallBack(HANDLE hTmCC, BOOL bConnect, unsigned int dwResult, void *context)
+//{
+//	return 0;
+//}
 
 ///************* 视频回调函数    ***********
 //在回调函数中处理H.264数据帧
@@ -351,182 +335,4 @@ void CRelayRTSPDlg::On_Click_LoadIniFile()
 	// TODO:  在此添加控件通知处理程序代码
 	CFileDialog dlgFile(true);
 	dlgFile.DoModal();
-}
-
-
-//连接
-void CRelayRTSPDlg::OnClickedConnectToNVR()
-{
-	// TODO:  在此添加控件通知处理程序代码
-	memset(&tmLogin, 0, sizeof(tmConnectInfo_t));
-	tmLogin.dwSize = sizeof(tmConnectCfg_t);
-	tmLogin.iPort = 6002;
-	((CEdit*)(GetDlgItem(IDC_NVR_IPADDRESS1)))->UpdateData(TRUE);
-	((CEdit*)(GetDlgItem(IDC_NVR_IPADDRESS1)))->GetWindowTextA(m_strNVRIPAddress);
-	strcpy(tmLogin.pIp, m_strNVRIPAddress);
-	//sprintf(tmLogin.pIp,m_strNVRIPAddress);
-	sprintf(tmLogin.szUser, "system");
-	sprintf(tmLogin.szPass, "system");
-	//设置连接超时值
-	TMCC_SetTimeOut(hLogin, 3000);
-	//注册登录状态回调
-	TMCC_RegisterConnectCallBack(hLogin, OnLoginCallBack, this);
-	if (TMCC_ERR_SUCCESS != TMCC_Connect(hLogin, &tmLogin, FALSE))
-	{
-		//登录失败
-		MessageBox("连接NVR设备失败!");
-		return;
-	}
-
-	((CStatic*)(GetDlgItem(IDC_STATUS)))->SetWindowTextA("连接成功\n" + m_strNVRIPAddress);
-	((CButton*)GetDlgItem(IDC_DISCONNECT))->EnableWindow(true);
-	((CButton*)GetDlgItem(IDC_CONNECT))->EnableWindow(false);
-	((CButton*)GetDlgItem(IDC_SEARCH_FILE))->EnableWindow(true);
-	((CButton*)GetDlgItem(IDC_START_RTSP))->EnableWindow(true);
-}
-
-
-void CRelayRTSPDlg::OnClickedDisconnectFromNVR()
-{
-	// TODO:  在此添加控件通知处理程序代码
-	if (NULL != hLogin)
-	{
-		TMCC_DisConnect(hLogin);
-		((CButton*)GetDlgItem(IDC_DISCONNECT))->EnableWindow(false);
-		((CButton*)GetDlgItem(IDC_CONNECT))->EnableWindow(true);
-		((CButton*)GetDlgItem(IDC_SEARCH_FILE))->EnableWindow(false);
-		((CButton*)GetDlgItem(IDC_START_RTSP))->EnableWindow(false);
-	}
-}
-
-//搜索NVR文件
-void CRelayRTSPDlg::OnClickedSearchFile()
-{
-	AfxBeginThread(FileSearchProc, this);
-	// TODO:  在此添加控件通知处理程序代码
-}
-
-//启动RTSP服务
-void CRelayRTSPDlg::OnClickedStartRtsp()
-{
-	// TODO:  在此添加控件通知处理程序代码
-}
-
-UINT CRelayRTSPDlg::FileSearchProc(void* lpThis)
-{
-	return ((CRelayRTSPDlg*)lpThis)->FileSearchProcLoop(0);
-}
-UINT CRelayRTSPDlg::FileSearchProcLoop(int iControlType)
-{
-	int						iRet;
-	CString					str;
-	tmFindConditionCfg_t	cond;
-	tmFindFileCfg_t			file;
-	SYSTEMTIME				time;
-	HANDLE					hSearch = NULL;
-
-	m_listFile.DeleteAllItems();
-
-	memset(&file, 0, sizeof(tmFindFileCfg_t));
-	file.dwSize = sizeof(tmFindFileCfg_t);
-
-	memset(&cond, 0, sizeof(tmFindConditionCfg_t));
-	cond.dwSize = sizeof(tmFindConditionCfg_t);
-	cond.byChannel = m_nNVRChannel+1;
-	cond.byFileType = 0xFF;
-	cond.bySearchImage = 0;
-	cond.bySearchAllTime = 1;
-	m_ctrlDateStart.GetTime(&time);
-	cond.struStartTime.wYear = time.wYear;
-	cond.struStartTime.byMonth = time.wMonth;
-	cond.struStartTime.byDay = time.wDay;
-	m_ctrlTimeStart.GetTime(&time);
-	cond.struStartTime.byHour = time.wHour;
-	cond.struStartTime.byMinute = time.wMinute;
-	cond.struStartTime.bySecond = time.wSecond;
-	cond.struStartTime.dwMicroSecond = time.wMilliseconds;
-	m_ctrlDateEnd.GetTime(&time);
-	cond.struStopTime.wYear = time.wYear;
-	cond.struStopTime.byMonth = time.wMonth;
-	cond.struStopTime.byDay = time.wDay;
-	m_ctrlTimeEnd.GetTime(&time);
-	cond.struStopTime.byHour = time.wHour;
-	cond.struStopTime.byMinute = time.wMinute;
-	cond.struStopTime.bySecond = time.wSecond;
-	cond.struStopTime.dwMicroSecond = time.wMilliseconds;
-	cond.byEnableServer = 0;
-	cond.byOldServer = TRUE;
-	cond.byBackupData = FALSE;
-	cond.dwServerPort = 6002;
-	sprintf(cond.sServerAddress, "%s", m_strNVRIPAddress);
-	sprintf(cond.sUserName, "%s", "system");
-	sprintf(cond.sUserPass, "%s", "system");
-	hSearch = TMCC_FindFirstFile(hLogin, &cond, &file);
-	if (hSearch == NULL)
-	{
-		AfxMessageBox("do not have video file");//没有录像文件
-		return FALSE;
-	}
-
-	do
-	{
-		InsertList(&file, 0);
-		iRet = ::TMCC_FindNextFile(hSearch, &file);
-		if (iRet != TMCC_ERR_SUCCESS)
-		{
-			break;
-		}
-	} while (TRUE);
-
-	::TMCC_FindCloseFile(hSearch);
-
-	if (m_pFileList != NULL)
-	{
-		FileList_t*		pFirst = m_pFileList;
-		FileList_t*		pNext = m_pFileList;
-		tmTimeInfo_t	struTail;
-
-		while (pNext->next != NULL)
-		{
-			pNext = pNext->next;
-		}
-	}
-
-
-	return TRUE;
-}
-
-FileList_t* CRelayRTSPDlg::InsertList(tmFindFileCfg_t* pFind, BOOL bImage)
-{
-	int			iCount = m_listFile.GetItemCount();
-	FileList_t* pNew = new FileList_t;
-	FileList_t*	pFirst = NULL;
-
-	memset(pNew, 0, sizeof(FileList_t));
-	pNew->file = *pFind;
-	pNew->item = m_listFile.InsertItem(iCount, pFind->sFileName);
-	//MessageBox(pFind->sFileName);
-	pNew->bImage = bImage;
-	m_listFile.SetItemData(pNew->item, (DWORD)pNew);
-
-	if (m_pFileList == NULL)
-	{
-		m_pFileList = pNew;
-	}
-	else
-	{
-		pFirst = m_pFileList;
-		while (pFirst)
-		{
-			if (pFirst->next == NULL)
-			{
-				pFirst->next = pNew;
-				pNew->prev = pFirst;
-				break;
-			}
-			pFirst = pFirst->next;
-		}
-	}
-
-	return pNew;
 }
