@@ -24,6 +24,16 @@ typedef struct tagFileList_t
 	BOOL					bImage;
 }FileList_t;
 
+typedef struct tagNVRLogin_t
+{
+	CString strIP;
+	int nPort;
+	CString strName;
+	CString strPassword;
+	int nChannelCount;
+	CString strVideoType;
+}NVRLogin_t;
+
 // CRelayRTSPDlg 对话框
 class CRelayRTSPDlg : public CDialogEx
 {
@@ -55,9 +65,15 @@ private:
 	UsageEnvironment* env;
 	int nCameraIP;
 
+	//鼠标位置
+	POINT ptFile;
+
+
 	//登陆相关
-	HANDLE hLogin;		//连接句柄
+	HANDLE hLogin;		//登陆连接句柄
 	tmConnectInfo_t  tmLogin;
+	
+	HANDLE m_hPlay;	//播放文件句柄
 
 
 	//数据流头信息
@@ -88,13 +104,16 @@ protected:
 	//文件列表
 	FileList_t*		m_pFileList;
 
+	//NVR登陆相关参数
+	NVRLogin_t m_tNVRLogin;
+
 public:
 	afx_msg void OnClose();
-	afx_msg void On_Click_LoadIniFile();
 
 	//数据流回调相关
-	int 				OnStreamData(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo);
+	int					OnStreamData(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo);
 	static int WINAPI	OnLoginCallBack(HANDLE hTmCC, BOOL bConnect, unsigned int dwResult, void *context);
+	static int	 WINAPI	fnDataCallBack(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo, void *context);
 
 	// NVR视频通道号
 	int m_nNVRChannel;
@@ -106,4 +125,5 @@ public:
 	CListCtrl m_listFile;
 	afx_msg void OnClickedSearchFile();
 	afx_msg void OnClickedStartRtsp();
+	afx_msg void OnClickFileList(NMHDR *pNMHDR, LRESULT *pResult);
 };

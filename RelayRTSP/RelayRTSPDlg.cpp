@@ -49,7 +49,7 @@ END_MESSAGE_MAP()
 
 CRelayRTSPDlg::CRelayRTSPDlg(CWnd* pParent /*=NULL*/)
 : CDialogEx(CRelayRTSPDlg::IDD, pParent), env(NULL)
-, m_nNVRChannel(0)
+, m_nNVRChannel(0), hLogin(NULL),m_hPlay(NULL)
 , m_strNVRIPAddress(_T("")), m_pFileList(NULL)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
@@ -78,6 +78,7 @@ BEGIN_MESSAGE_MAP(CRelayRTSPDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_DISCONNECT, &CRelayRTSPDlg::OnClickedDisconnectFromNVR)
 	ON_BN_CLICKED(IDC_SEARCH_FILE, &CRelayRTSPDlg::OnClickedSearchFile)
 	ON_BN_CLICKED(IDC_START_RTSP, &CRelayRTSPDlg::OnClickedStartRtsp)
+	ON_NOTIFY(NM_CLICK, IDC_FILELIST, &CRelayRTSPDlg::OnClickFileList)
 END_MESSAGE_MAP()
 
 
@@ -123,7 +124,7 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO:  在此添加额外的初始化代
-	
+
 
 	//界面初始化
 	((CButton*)GetDlgItem(IDC_DISCONNECT))->EnableWindow(false);
@@ -133,30 +134,36 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	m_listFile.SetExtendedStyle(m_listFile.GetExtendedStyle() | LVS_EX_FULLROWSELECT);
 	m_listFile.InsertColumn(0, "文件列表", LVCFMT_LEFT, 500, 0);
 
+	//读取默认的ini文件，配置NVR和RTSP服务
+	m_tNVRLogin.nPort = ::GetPrivateProfileInt("global", "port", 6002, "./NVR_Config.ini");
+	m_tNVRLogin.nChannelCount = ::GetPrivateProfileInt("global", "camera_Channel_Count", 12, "./NVR_Config.ini");
+	char ss[128];
+	::GetPrivateProfileString("global", "IP", "192.168.1.122", ss, 128, "./NVR_Config.ini");
+	m_tNVRLogin.strIP.Format("%s", ss);
+	::GetPrivateProfileString("global", "user_name", "system", ss, 128, "./NVR_Config.ini");
+	m_tNVRLogin.strName.Format("%s", ss);
+	::GetPrivateProfileString("global", "user_password", "system", ss, 128, "./NVR_Config.ini");
+	m_tNVRLogin.strPassword.Format("%s", ss);
+	::GetPrivateProfileString("global", "TYPE", "1600*1200", ss, 128, "./NVR_Config.ini");
+	m_tNVRLogin.strVideoType.Format("%s", ss);
+
 	//设置初始IP
-	m_strNVRIPAddress = "192.168.1.12";
+	m_strNVRIPAddress = m_tNVRLogin.strIP;
 	((CEdit*)(GetDlgItem(IDC_NVR_IPADDRESS1)))->SetWindowTextA(m_strNVRIPAddress);
 
 	//初始化通道号
 	m_combNVRChannel.ResetContent();
 	//((CComboBox*)GetDlgItem(IDC_NVRCHANNEL))->ResetContent();
 	CString strTemp = "";
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i <= m_tNVRLogin.nChannelCount; i++)
 	{
-		strTemp.Format("%d", i+1);
+		strTemp.Format("%d", i);
 		m_combNVRChannel.InsertString(-1, strTemp);
 	}
 	m_combNVRChannel.SetCurSel(0);
 	m_combNVRChannel.UpdateData(TRUE);
-	
-	//读取默认的ini文件，配置NVR和RTSP服务
-	//int n =  ::GetPrivateProfileInt("RTSP", "Port1", 234, "./default.ini");
-	//char ss[128];
-	//::GetPrivateProfileString("NVR1", "IP","default",ss,128,"./NVR-test.ini");
-	//初始化NVR采集相关参数
 
-	//NVR相关
-	hLogin = NULL;
+
 	// 打开NVR
 	if (NULL == hLogin)
 	{
@@ -326,11 +333,14 @@ void CRelayRTSPDlg::startReplicaUDPSink(StreamReplicator* replicator, char const
 	sink->startPlaying(*source, NULL, NULL);
 }
 
+//退出
 void CRelayRTSPDlg::OnClose()
 {
 	// TODO:  在此添加消息处理程序代码和/或调用默认值
 
 	//释放NVR资源
+	TMCC_CloseFile(m_hPlay);
+	m_hPlay = NULL;
 	TMCC_Done(hLogin);
 	hLogin = NULL;
 
@@ -346,13 +356,6 @@ void CRelayRTSPDlg::OnClose()
 	CDialogEx::OnClose();
 }
 
-void CRelayRTSPDlg::On_Click_LoadIniFile()
-{
-	// TODO:  在此添加控件通知处理程序代码
-	CFileDialog dlgFile(true);
-	dlgFile.DoModal();
-}
-
 
 //连接
 void CRelayRTSPDlg::OnClickedConnectToNVR()
@@ -360,13 +363,10 @@ void CRelayRTSPDlg::OnClickedConnectToNVR()
 	// TODO:  在此添加控件通知处理程序代码
 	memset(&tmLogin, 0, sizeof(tmConnectInfo_t));
 	tmLogin.dwSize = sizeof(tmConnectCfg_t);
-	tmLogin.iPort = 6002;
-	((CEdit*)(GetDlgItem(IDC_NVR_IPADDRESS1)))->UpdateData(TRUE);
-	((CEdit*)(GetDlgItem(IDC_NVR_IPADDRESS1)))->GetWindowTextA(m_strNVRIPAddress);
+	tmLogin.iPort = m_tNVRLogin.nPort;
 	strcpy(tmLogin.pIp, m_strNVRIPAddress);
-	//sprintf(tmLogin.pIp,m_strNVRIPAddress);
-	sprintf(tmLogin.szUser, "system");
-	sprintf(tmLogin.szPass, "system");
+	sprintf(tmLogin.szUser, m_tNVRLogin.strName);
+	sprintf(tmLogin.szPass, m_tNVRLogin.strPassword);
 	//设置连接超时值
 	TMCC_SetTimeOut(hLogin, 3000);
 	//注册登录状态回调
@@ -391,17 +391,21 @@ void CRelayRTSPDlg::OnClickedDisconnectFromNVR()
 	// TODO:  在此添加控件通知处理程序代码
 	if (NULL != hLogin)
 	{
-		TMCC_DisConnect(hLogin);
-		((CButton*)GetDlgItem(IDC_DISCONNECT))->EnableWindow(false);
-		((CButton*)GetDlgItem(IDC_CONNECT))->EnableWindow(true);
-		((CButton*)GetDlgItem(IDC_SEARCH_FILE))->EnableWindow(false);
-		((CButton*)GetDlgItem(IDC_START_RTSP))->EnableWindow(false);
+		if (TMCC_ERR_SUCCESS == TMCC_DisConnect(hLogin))
+		{
+			((CStatic*)(GetDlgItem(IDC_STATUS)))->SetWindowTextA("断开成功\n" + m_strNVRIPAddress);
+			((CButton*)GetDlgItem(IDC_DISCONNECT))->EnableWindow(false);
+			((CButton*)GetDlgItem(IDC_CONNECT))->EnableWindow(true);
+			((CButton*)GetDlgItem(IDC_SEARCH_FILE))->EnableWindow(false);
+			((CButton*)GetDlgItem(IDC_START_RTSP))->EnableWindow(false);
+		}
 	}
 }
 
 //搜索NVR文件
 void CRelayRTSPDlg::OnClickedSearchFile()
 {
+	//启动文件搜索服务
 	AfxBeginThread(FileSearchProc, this);
 	// TODO:  在此添加控件通知处理程序代码
 }
@@ -410,6 +414,79 @@ void CRelayRTSPDlg::OnClickedSearchFile()
 void CRelayRTSPDlg::OnClickedStartRtsp()
 {
 	// TODO:  在此添加控件通知处理程序代码
+	CString					str;
+	int						index, iRet;
+	int						count;
+	BOOL					bCancel = FALSE;
+	tmPlayConditionCfg_t	struCond;
+	FileList_t*				pFileList;
+	tmTimeInfo_t*			pTime;
+	SYSTEMTIME				time;
+	BYTE*					buffer = new BYTE[1600 * 1200];
+	if (NULL != m_hPlay)
+	{
+		TMCC_CloseFile(m_hPlay);
+		m_hPlay = NULL;
+	}
+
+	//获取选择文件的序号
+	m_listFile.ScreenToClient(&ptFile);
+	index = m_listFile.HitTest(ptFile);
+	if (index < 0)
+	{
+		AfxMessageBox("未选中文件");//没有选择文件
+		return;
+	}
+
+	//获取文件信息
+	pFileList = (FileList_t*)m_listFile.GetItemData(index);
+	if (pFileList == NULL)
+	{
+		AfxMessageBox("系统错误");//系统错误
+		return;
+	}
+
+	memset(&struCond, 0, sizeof(tmPlayConditionCfg_t));
+	struCond.dwSize = sizeof(tmPlayConditionCfg_t);
+	struCond.wFactoryId = pFileList->file.wFactoryId;
+	struCond.byChannel = pFileList->file.byChannel;
+	struCond.byPlayImage = FALSE;
+	struCond.byBufferBeforePlay = 0;
+	struCond.dwBufferSizeBeforePlay = 1600 * 1200 * 20;
+	struCond.info.time.byBackupData = pFileList->file.byBackupData;
+	struCond.info.time.byDiskName = pFileList->file.byDiskName;
+	struCond.info.time.byCheckStopTime = 0;
+	struCond.info.time.struStartTime = pFileList->file.struStartTime;
+	struCond.info.time.struStopTime = pFileList->file.struStopTime;
+	struCond.info.time.byAlarmType = pFileList->file.byAlarmType;
+	struCond.info.time.byFileFormat = pFileList->file.byFileFormat;
+	struCond.info.time.dwServerPort = m_tNVRLogin.nPort;
+	struCond.byEnableServer = 0;
+	struCond.fnStreamReadCallBack = fnDataCallBack;
+	struCond.fnStreamReadContext = this;
+	struCond.byPlayType = 0;//不解码显示，为TMCC_ReadFile提供支持;
+	sprintf(struCond.info.time.sServerAddress, "%s", m_tNVRLogin.strIP);
+	sprintf(struCond.info.time.sUserName, "%s", m_tNVRLogin.strName);
+	sprintf(struCond.info.time.sUserPass, "%s", m_tNVRLogin.strPassword);
+
+	m_hPlay = TMCC_OpenFile(hLogin, &struCond, ((CStatic*)(GetDlgItem(IDC_STATUS)))->GetSafeHwnd());
+	if (NULL == m_hPlay)
+	{
+		MessageBox("文件打开失败");
+		return;
+	}
+
+	//播放
+	//tmPlayControlCfg_t cfg;
+	//memset(&cfg, 0, sizeof(tmPlayControlCfg_t));
+	//cfg.dwSize = sizeof(tmPlayControlCfg_t);
+	//cfg.dwCommand = PLAY_CONTROL_PLAY;
+	//TMCC_ControlFile(m_hPlay, &cfg);
+}
+
+int WINAPI CRelayRTSPDlg::fnDataCallBack(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo, void *context)
+{
+	return 0;
 }
 
 UINT CRelayRTSPDlg::FileSearchProc(void* lpThis)
@@ -429,13 +506,14 @@ UINT CRelayRTSPDlg::FileSearchProcLoop(int iControlType)
 
 	memset(&file, 0, sizeof(tmFindFileCfg_t));
 	file.dwSize = sizeof(tmFindFileCfg_t);
+	file.byFileFormat = 10;
 
 	memset(&cond, 0, sizeof(tmFindConditionCfg_t));
 	cond.dwSize = sizeof(tmFindConditionCfg_t);
-	cond.byChannel = m_nNVRChannel+1;
+	cond.byChannel = m_combNVRChannel.GetCurSel();
 	cond.byFileType = 0xFF;
 	cond.bySearchImage = 0;
-	cond.bySearchAllTime = 1;
+	cond.bySearchAllTime = 0;
 	m_ctrlDateStart.GetTime(&time);
 	cond.struStartTime.wYear = time.wYear;
 	cond.struStartTime.byMonth = time.wMonth;
@@ -454,13 +532,13 @@ UINT CRelayRTSPDlg::FileSearchProcLoop(int iControlType)
 	cond.struStopTime.byMinute = time.wMinute;
 	cond.struStopTime.bySecond = time.wSecond;
 	cond.struStopTime.dwMicroSecond = time.wMilliseconds;
-	cond.byEnableServer = 0;
+	cond.byEnableServer = 1;
 	cond.byOldServer = TRUE;
 	cond.byBackupData = FALSE;
-	cond.dwServerPort = 6002;
+	cond.dwServerPort = m_tNVRLogin.nPort;
 	sprintf(cond.sServerAddress, "%s", m_strNVRIPAddress);
-	sprintf(cond.sUserName, "%s", "system");
-	sprintf(cond.sUserPass, "%s", "system");
+	sprintf(cond.sUserName, "%s", m_tNVRLogin.strName);
+	sprintf(cond.sUserPass, "%s", m_tNVRLogin.strPassword);
 	hSearch = TMCC_FindFirstFile(hLogin, &cond, &file);
 	if (hSearch == NULL)
 	{
@@ -529,4 +607,13 @@ FileList_t* CRelayRTSPDlg::InsertList(tmFindFileCfg_t* pFind, BOOL bImage)
 	}
 
 	return pNew;
+}
+
+
+void CRelayRTSPDlg::OnClickFileList(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
+	// TODO:  在此添加控件通知处理程序代码
+	GetCursorPos(&ptFile);
+	*pResult = 0;
 }
