@@ -14,6 +14,10 @@
 
 #pragma once
 
+#define WM_PLAYSTATE			WM_USER + 210
+#define WM_REFRESHSTATE			WM_USER + 211
+
+
 //文件列表
 typedef struct tagFileList_t
 {
@@ -57,6 +61,7 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
+	afx_msg LRESULT OnPlayStateMessage(WPARAM wParam, LPARAM lParam);
 	DECLARE_MESSAGE_MAP();
 
 private:	
@@ -67,6 +72,9 @@ private:
 
 	//鼠标位置
 	POINT ptFile;
+
+	int m_iImageWidth ,m_iImageHeight;
+
 
 
 	//登陆相关

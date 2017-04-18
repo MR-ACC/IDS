@@ -50,7 +50,8 @@ END_MESSAGE_MAP()
 CRelayRTSPDlg::CRelayRTSPDlg(CWnd* pParent /*=NULL*/)
 : CDialogEx(CRelayRTSPDlg::IDD, pParent), env(NULL)
 , m_nNVRChannel(0), hLogin(NULL),m_hPlay(NULL)
-, m_strNVRIPAddress(_T("")), m_pFileList(NULL)
+, m_strNVRIPAddress(_T("")), m_pFileList(NULL),m_iImageWidth(0),m_iImageHeight(0)
+
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -79,6 +80,7 @@ BEGIN_MESSAGE_MAP(CRelayRTSPDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_SEARCH_FILE, &CRelayRTSPDlg::OnClickedSearchFile)
 	ON_BN_CLICKED(IDC_START_RTSP, &CRelayRTSPDlg::OnClickedStartRtsp)
 	ON_NOTIFY(NM_CLICK, IDC_FILELIST, &CRelayRTSPDlg::OnClickFileList)
+	ON_MESSAGE(WM_PLAYSTATE, OnPlayStateMessage)
 END_MESSAGE_MAP()
 
 
@@ -205,12 +207,13 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
+//登陆回调函数
 int WINAPI	CRelayRTSPDlg::OnLoginCallBack(HANDLE hTmCC, BOOL bConnect, unsigned int dwResult, void *context)
 {
 	return 0;
 }
 
-///************* 视频回调函数    ***********
+///************* 视频回调处理函数    ***********
 //在回调函数中处理H.264数据帧
 //每到达1个数据帧，则将此数据帧直接打包到RTSP服务器中
 //注意H.264数据帧在SDK与RTSP中打包/解包的区别
@@ -222,7 +225,7 @@ int CRelayRTSPDlg::OnStreamData(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo)
 	//收到视频数据
 	if (0 == pStreamInfo->byFrameType)
 	{
-		TRACE("收到视频数据   码流号:%d，流类型：%d,流ID：%d\n", pStreamInfo->byStreamNo,
+		TRACE("收到视频数据   帧类型：%d,码流号:%d，流类型：%d,流ID：%d\n", pStreamInfo->byFrameType, pStreamInfo->byStreamNo,
 			pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
 
 		//加入视频帧到RTSP服务器数据缓冲区（如何确定不同通道来的视频流？？）
@@ -238,10 +241,10 @@ int CRelayRTSPDlg::OnStreamData(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo)
 	if (2 == pStreamInfo->byFrameType)
 	{
 		//		TRACE("收到数据流头:%d帧\n", pStreamInfo->byFrameType);
-		//TRACE("收到数据流头:码流号：%d帧，码流序号：%d，流类型:%d，流ID:%d\n", pStreamInfo->dwStreamId,
-		//	pStreamInfo->byVideoIndex);
+		TRACE("收到数据流头:帧类型：%d,码流号：%d，码流序号：%d，流类型:%d，流ID:%d\n", pStreamInfo->byFrameType,
+			pStreamInfo->dwStreamId, pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
 		memcpy(pStreamHead, pStreamInfo->pBuffer, pStreamInfo->iBufferSize);
-		nStreamHeadSize = pStreamInfo->iBufferSize;
+		//nStreamHeadSize = pStreamInfo->iBufferSize;
 		//		pStreamHead = (tmAvInfo_t*)pStreamHead;
 		//TRACE("收到数据流头:码流号：%d帧，码流序号：%d，流类型:%d，流ID:%d\n", (tmAvInfo_t)pStreamHead->dwStreamId,
 		//	pStreamHead->byVideoIndex);
@@ -299,6 +302,7 @@ HCURSOR CRelayRTSPDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+//启动sink用户服务
 void CRelayRTSPDlg::startReplicaFileSink(StreamReplicator* replicator, char const* outputFileName)
 {
 	// Begin by creating an input stream from our replicator:
@@ -311,6 +315,7 @@ void CRelayRTSPDlg::startReplicaFileSink(StreamReplicator* replicator, char cons
 	sink->startPlaying(*source, NULL, NULL);
 }
 
+//启动UDP服务
 void CRelayRTSPDlg::startReplicaUDPSink(StreamReplicator* replicator, char const* outputAddressStr, portNumBits outputPortNum)
 {
 	// Begin by creating an input stream from our replicator:
@@ -356,8 +361,7 @@ void CRelayRTSPDlg::OnClose()
 	CDialogEx::OnClose();
 }
 
-
-//连接
+//连接到NVR
 void CRelayRTSPDlg::OnClickedConnectToNVR()
 {
 	// TODO:  在此添加控件通知处理程序代码
@@ -385,7 +389,7 @@ void CRelayRTSPDlg::OnClickedConnectToNVR()
 	((CButton*)GetDlgItem(IDC_START_RTSP))->EnableWindow(true);
 }
 
-
+//从NVR断开
 void CRelayRTSPDlg::OnClickedDisconnectFromNVR()
 {
 	// TODO:  在此添加控件通知处理程序代码
@@ -451,20 +455,20 @@ void CRelayRTSPDlg::OnClickedStartRtsp()
 	struCond.wFactoryId = pFileList->file.wFactoryId;
 	struCond.byChannel = pFileList->file.byChannel;
 	struCond.byPlayImage = FALSE;
-	struCond.byBufferBeforePlay = 0;
+	struCond.byBufferBeforePlay = FALSE;
 	struCond.dwBufferSizeBeforePlay = 1600 * 1200 * 20;
 	struCond.info.time.byBackupData = pFileList->file.byBackupData;
 	struCond.info.time.byDiskName = pFileList->file.byDiskName;
-	struCond.info.time.byCheckStopTime = 0;
+	struCond.info.time.byCheckStopTime = FALSE;
 	struCond.info.time.struStartTime = pFileList->file.struStartTime;
 	struCond.info.time.struStopTime = pFileList->file.struStopTime;
 	struCond.info.time.byAlarmType = pFileList->file.byAlarmType;
 	struCond.info.time.byFileFormat = pFileList->file.byFileFormat;
 	struCond.info.time.dwServerPort = m_tNVRLogin.nPort;
-	struCond.byEnableServer = 0;
+	struCond.byEnableServer = FALSE;
 	struCond.fnStreamReadCallBack = fnDataCallBack;
 	struCond.fnStreamReadContext = this;
-	struCond.byPlayType = 0;//不解码显示，为TMCC_ReadFile提供支持;
+	struCond.byPlayType = REMOTEPLAY_MODE_BUFFILE;//  REMOTEPLAY_MODE_READFILE
 	sprintf(struCond.info.time.sServerAddress, "%s", m_tNVRLogin.strIP);
 	sprintf(struCond.info.time.sUserName, "%s", m_tNVRLogin.strName);
 	sprintf(struCond.info.time.sUserPass, "%s", m_tNVRLogin.strPassword);
@@ -476,23 +480,67 @@ void CRelayRTSPDlg::OnClickedStartRtsp()
 		return;
 	}
 
-	//播放
-	//tmPlayControlCfg_t cfg;
-	//memset(&cfg, 0, sizeof(tmPlayControlCfg_t));
-	//cfg.dwSize = sizeof(tmPlayControlCfg_t);
-	//cfg.dwCommand = PLAY_CONTROL_PLAY;
-	//TMCC_ControlFile(m_hPlay, &cfg);
+	//播放文件
+	tmPlayControlCfg_t cfg;
+	memset(&cfg, 0, sizeof(tmPlayControlCfg_t));
+	cfg.dwSize = sizeof(tmPlayControlCfg_t);
+	cfg.dwCommand = PLAY_CONTROL_PLAY;
+	TMCC_ControlFile(m_hPlay, &cfg);
+
+	//注册消息
+	TMCC_GetImageSize(m_hPlay, &m_iImageWidth, &m_iImageHeight);
+//	TMCC_RegisterConnectMessage(m_hPlay, GetSafeHwnd(), WM_PLAYSTATE);
 }
 
-int WINAPI CRelayRTSPDlg::fnDataCallBack(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo, void *context)
+//播放状态回掉函数
+LRESULT CRelayRTSPDlg::OnPlayStateMessage(WPARAM wParam, LPARAM lParam)
 {
+	TRACE("wParam = %d,lParam = %d\n", wParam, lParam);
 	return 0;
 }
 
+//远程文件读取回调函数
+int WINAPI CRelayRTSPDlg::fnDataCallBack(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo, void *context)
+{
+	return ((CRelayRTSPDlg*)context)->OnStreamData(hTmCC, pStreamInfo);
+
+	//if (0 == pStreamInfo->byFrameType)
+	//{
+	//	TRACE("收到视频数据   帧类型：%d,码流号:%d，流类型：%d,流ID：%d\n", pStreamInfo->byFrameType, pStreamInfo->byStreamNo,
+	//		pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
+
+	//	//加入视频帧到RTSP服务器数据缓冲区（如何确定不同通道来的视频流？？）
+	//}
+
+	////收到音频数据
+	//if (1 == pStreamInfo->byFrameType)
+	//{
+	//	TRACE("收到音频数据类型:%d，流ID：%d\n", pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
+	//}
+
+	////收到数据流头
+	//if (2 == pStreamInfo->byFrameType)
+	//{
+	//	//		TRACE("收到数据流头:%d帧\n", pStreamInfo->byFrameType);
+	//	TRACE("收到数据流头:帧类型：%d,码流号：%d，码流序号：%d，流类型:%d，流ID:%d\n", pStreamInfo->byFrameType,
+	//		pStreamInfo->dwStreamId, pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
+	//	memcpy(pStreamHead, pStreamInfo->pBuffer, pStreamInfo->iBufferSize);
+	//	//nStreamHeadSize = pStreamInfo->iBufferSize;
+	//	//		pStreamHead = (tmAvInfo_t*)pStreamHead;
+	//	//TRACE("收到数据流头:码流号：%d帧，码流序号：%d，流类型:%d，流ID:%d\n", (tmAvInfo_t)pStreamHead->dwStreamId,
+	//	//	pStreamHead->byVideoIndex);
+
+	//}
+	return 0;
+}
+
+//文件搜索线程函数
 UINT CRelayRTSPDlg::FileSearchProc(void* lpThis)
 {
 	return ((CRelayRTSPDlg*)lpThis)->FileSearchProcLoop(0);
 }
+
+//文件搜索函数
 UINT CRelayRTSPDlg::FileSearchProcLoop(int iControlType)
 {
 	int						iRet;
@@ -574,6 +622,7 @@ UINT CRelayRTSPDlg::FileSearchProcLoop(int iControlType)
 	return TRUE;
 }
 
+//插入搜索结果到列表
 FileList_t* CRelayRTSPDlg::InsertList(tmFindFileCfg_t* pFind, BOOL bImage)
 {
 	int			iCount = m_listFile.GetItemCount();
@@ -609,7 +658,7 @@ FileList_t* CRelayRTSPDlg::InsertList(tmFindFileCfg_t* pFind, BOOL bImage)
 	return pNew;
 }
 
-
+//鼠标单击文件列表消息响应函数
 void CRelayRTSPDlg::OnClickFileList(NMHDR *pNMHDR, LRESULT *pResult)
 {
 	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
