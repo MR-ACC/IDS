@@ -39,6 +39,9 @@
     <ClInclude Include="H264LiveVideoServerMediaSubssion.hh">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="RemotePlayerCom.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RelayRTSP.cpp">
@@ -56,6 +59,9 @@
     <ClCompile Include="H264LiveVideoServerMediaSubssion.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="RemotePlayerCom.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RelayRTSP.rc">
@@ -69,6 +75,12 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\RelayRTSP.ico">
+      <Filter>资源文件</Filter>
+    </Image>
+    <Image Include="res\icon1.ico">
+      <Filter>资源文件</Filter>
+    </Image>
+    <Image Include="res\lenovo.ico">
       <Filter>资源文件</Filter>
     </Image>
   </ItemGroup>

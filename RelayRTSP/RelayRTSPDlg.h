@@ -11,6 +11,10 @@
 #include "inc\tmControlClient.h"
 #include "H264LiveVideoServerMediaSubssion.hh"
 #include "H264FramedLiveSource.hh"
+#include "RemotePlayerCom.h"
+
+//#include <string>
+//using namespace std;
 
 #pragma once
 
@@ -37,6 +41,21 @@ typedef struct tagNVRLogin_t
 	int nChannelCount;
 	CString strVideoType;
 }NVRLogin_t;
+
+#define HEAD_MAX_LEN		1024
+typedef struct tagRemoteFile_t
+{
+	HANDLE	hObject;
+	HANDLE	hControl;
+	BYTE	pHeadInfo[HEAD_MAX_LEN];
+	int		iHeadInfoLen;
+	int		iFileCurrentPos;
+	int		iFrameRate;
+	BOOL	bFileFinish;
+	BYTE*	pFrameBuffer;
+	int		iFrameBufferLen;
+	int		iFrameLen;
+}RemoteFile_t;
 
 // CRelayRTSPDlg 对话框
 class CRelayRTSPDlg : public CDialogEx
@@ -75,8 +94,6 @@ private:
 
 	int m_iImageWidth ,m_iImageHeight;
 
-
-
 	//登陆相关
 	HANDLE hLogin;		//登陆连接句柄
 	tmConnectInfo_t  tmLogin;
@@ -102,10 +119,12 @@ private:
 	void startReplicaUDPSink(StreamReplicator* replicator, char const* outputAddressStr, portNumBits outputPortNum); // forward
 	void startReplicaFileSink(StreamReplicator* replicator, char const* outputFileName); // forward
 
-protected:
 	static UINT			FileSearchProc(void* lpThis);
 	UINT				FileSearchProcLoop(int iControlType);
 
+	static int OnRemoteFileRead(HANDLE hObject, void* lpBuffer, int nRead, unsigned int* pdwCodeTag, int* pNeedBufSize, void* context);
+	static int OnRemoteFileSeek(HANDLE hObject, int offset, int origin, int* pPosition, unsigned int* pTimeStamp, void* context);
+protected:
 	//加入列表
 	FileList_t*			InsertList(tmFindFileCfg_t* pFind, BOOL bImage);
 
@@ -114,6 +133,8 @@ protected:
 
 	//NVR登陆相关参数
 	NVRLogin_t m_tNVRLogin;
+
+	//string myTestString;
 
 public:
 	afx_msg void OnClose();
@@ -134,4 +155,6 @@ public:
 	afx_msg void OnClickedSearchFile();
 	afx_msg void OnClickedStartRtsp();
 	afx_msg void OnClickFileList(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnBnClickedOk();
+	afx_msg void OnDestroy();
 };
