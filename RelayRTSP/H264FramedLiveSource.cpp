@@ -6,14 +6,17 @@ H264FramedLiveSource::H264FramedLiveSource(UsageEnvironment& env, int *datasize,
 	Framed_databuf = databuf;//数据区指针
 	Framed_dosent = dosent;//发送标示
 }
+
 H264FramedLiveSource* H264FramedLiveSource::createNew(UsageEnvironment& env, int *datasize, unsigned char* databuf, bool *dosent, unsigned preferredFrameSize, unsigned playTimePerFrame)
 {
 	H264FramedLiveSource* newSource = new H264FramedLiveSource(env, datasize, databuf, dosent, preferredFrameSize, playTimePerFrame);
 	return newSource;
 }
+
 H264FramedLiveSource::~H264FramedLiveSource()
 {
 }
+
 void H264FramedLiveSource::doGetNextFrame()
 {
 	if (*Framed_dosent == true)
@@ -27,7 +30,7 @@ void H264FramedLiveSource::doGetNextFrame()
 	}
 	else
 	{
-		if (bufsizel - readbufsize > fMaxSize)
+		if (bufsizel - readbufsize > (int)fMaxSize)
 		{
 			fFrameSize = fMaxSize;
 			memcpy(fTo, Framed_databuf + readbufsize, fFrameSize);

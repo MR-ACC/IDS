@@ -1,7 +1,7 @@
 
 // RelayRTSPDlg.cpp : 实现文件
 //
-#include<vector>
+//#include<vector>
 #include "stdafx.h"
 #include "RelayRTSP.h"
 #include "RelayRTSPDlg.h"
@@ -48,10 +48,10 @@ END_MESSAGE_MAP()
 
 
 CRelayRTSPDlg::CRelayRTSPDlg(CWnd* pParent /*=NULL*/)
-: CDialogEx(CRelayRTSPDlg::IDD, pParent), env(NULL)
+: CDialogEx(CRelayRTSPDlg::IDD, pParent), env(NULL), auThDB(NULL), rtspServer(NULL), sms(NULL)
 , m_nNVRChannel(0), hLogin(NULL), m_hPlay(NULL)
 , m_strNVRIPAddress(_T("")), m_pFileList(NULL), m_iImageWidth(0), m_iImageHeight(0)
-, pStreamHead(NULL)
+, pStreamHead(NULL), pRtspThread(NULL)
 {
 	//m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 	m_hIcon = AfxGetApp()->LoadIcon(IDI_TRAY);
@@ -81,11 +81,8 @@ BEGIN_MESSAGE_MAP(CRelayRTSPDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_SEARCH_FILE, &CRelayRTSPDlg::OnClickedSearchFile)
 	ON_BN_CLICKED(IDC_START_RTSP, &CRelayRTSPDlg::OnClickedStartRtsp)
 	ON_NOTIFY(NM_CLICK, IDC_FILELIST, &CRelayRTSPDlg::OnClickFileList)
-	ON_MESSAGE(WM_PLAYSTATE, OnPlayStateMessage)
-	ON_BN_CLICKED(IDOK, &CRelayRTSPDlg::OnBnClickedOk)
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
-
 
 static void announceStream(RTSPServer* rtspServer, ServerMediaSession* sms, char const*
 	streamName)//显示RTSP连接信息
@@ -98,6 +95,12 @@ static void announceStream(RTSPServer* rtspServer, ServerMediaSession* sms, char
 }
 
 // CRelayRTSPDlg 消息处理程序
+
+LRESULT CRelayRTSPDlg::OnReceiveFrame(WPARAM w, LPARAM p)
+{
+	return 0;
+}
+
 
 BOOL CRelayRTSPDlg::OnInitDialog()
 {
@@ -185,22 +188,62 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	}
 
 	//初始化RTSP服务
-	pStreamHead = new BYTE[STREAM_HEAD_SIZE];
-
+	//	pStreamHead = new BYTE[STREAM_HEAD_SIZE];
 	reuseFirstSource = False;
 	scheduler = BasicTaskScheduler::createNew();
+	//	scheduler = GuiTaskScheduler::createNew();
 	env = BasicUsageEnvironment::createNew(*scheduler);
 
+	auThDB = new UserAuthenticationDatabase;
+	auThDB->addUserRecord("system", "system"); // replace these with real strings
+
+#ifdef ACCESS_CONTROL
+	authDB = new UserAuthenticationDatabase;
+	authDB->addUserRecord("system", "system"); // replace these with real strings
+#endif
+	rtspServer = RTSPServer::createNew(*env, 8002, auThDB);
+	if (rtspServer == NULL) {
+		*env << "Failed to create RTSP server: " << env->getResultMsg() << "\n";
+		return false;
+	}
+
+	//初始化数据缓冲区
+	databuf = (unsigned char*)malloc(1024 * 1024);
+
+	//加入数据并启动服务
+	//ServerMediaSession* sms = ServerMediaSession::createNew(*env, streamName,
+	//	streamName, descriptionString);
+	//sms->addSubsession(H264LiveVideoServerMediaSubssion::createNew(*env, reuseFirstSource,
+	//	&datasize, databuf, &dosent));//修改为自己实现的H264LiveVideoServerMediaSubssion
+	//rtspServer->addServerMediaSession(sms);
+	//announceStream(rtspServer, sms, streamName);//提示用户输入连接信息
+	//env->taskScheduler().doEventLoop(); //循环等待连接	(放入到线程中去)
+	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
+}
+
+UINT CRelayRTSPDlg::ThreadRTSPEvent(void* context)
+{
+	return ((CRelayRTSPDlg*)context)->RTSPEvent();
+}
+
+UINT CRelayRTSPDlg::RTSPEvent()
+{
+	env->taskScheduler().doEventLoop();
+	return TRUE;
+}
+
+void CRelayRTSPDlg::AddToRtspServer(UsageEnvironment* u_env, RtspServer_t serv)
+{
 	//添加用户访问控制（每增加一个客户端连接，就需要增加一条UserRecord）
 	UserAuthenticationDatabase *auThDB = NULL;
 #ifdef ACCESS_CONTROL
 	authDB = new UserAuthenticationDatabase;
 	authDB->addUserRecord("system", "system"); // replace these with real strings
 #endif
-	RTSPServer * rtspServer = RTSPServer::createNew(*env, 8002, auThDB);
+	rtspServer = RTSPServer::createNew(*env, 8002, auThDB);
 	if (rtspServer == NULL) {
 		*env << "Failed to create RTSP server: " << env->getResultMsg() << "\n";
-		return false;
+		return;
 	}
 
 	//初始化数据缓冲区
@@ -214,8 +257,9 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	rtspServer->addServerMediaSession(sms);
 	announceStream(rtspServer, sms, streamName);//提示用户输入连接信息
 	//	env->taskScheduler().doEventLoop(); //循环等待连接	
-	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
+
 }
+
 
 //登陆回调函数
 int WINAPI	CRelayRTSPDlg::OnLoginCallBack(HANDLE hTmCC, BOOL bConnect, unsigned int dwResult, void *context)
@@ -227,39 +271,47 @@ int WINAPI	CRelayRTSPDlg::OnLoginCallBack(HANDLE hTmCC, BOOL bConnect, unsigned 
 //在回调函数中处理H.264数据帧
 //每到达1个数据帧，则将此数据帧直接打包到RTSP服务器中
 //注意H.264数据帧在SDK与RTSP中打包/解包的区别
-// ********************
+// ********************/
 int CRelayRTSPDlg::OnStreamData(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo)
 {
 	//headRealStream = (tmAvInfo_t)pStreamHead;
 	//TRACE(headRealStream.byStreamId);
+	unsigned int nStreamType = 0, nFrameLength = 0;
 	//收到视频数据
 	if (0 == pStreamInfo->byFrameType)
 	{
-		TRACE("收到视频数据   帧类型：%d,buffer1:%d，buffer2：%d,buffer3：%d,buffer4:%d\n", pStreamInfo->byFrameType, pStreamInfo->iBufferSize,
-			pStreamInfo->iBuffer2Size, pStreamInfo->iBuffer3Size, pStreamInfo->iBuffer4Size);
+		//TRACE("收到视频数据   帧类型：%d,buffer1:%d，buffer2：%d,buffer3：%d,buffer4:%d\n", pStreamInfo->byFrameType, pStreamInfo->iBufferSize,
+		//	pStreamInfo->iBuffer2Size, pStreamInfo->iBuffer3Size, pStreamInfo->iBuffer4Size);
 
 		//加入视频帧到RTSP服务器数据缓冲区（如何确定不同通道来的视频流？？）
+		memcpy(&nStreamType, pStreamInfo->pBuffer, 4);
+		memcpy(&nFrameLength, pStreamInfo->pBuffer + 4, 4);
+		TRACE("流类型：0x%x-%d,帧长度:%d\n", nStreamType, nStreamType, nFrameLength);
+
+		//拷贝数据到RTSP服务的缓冲区
+		memcpy(&datasize, pStreamInfo->pBuffer + 4, 4);
+		memcpy(databuf, pStreamInfo->pBuffer + 8, datasize);
 	}
 
-	//收到音频数据
-	if (1 == pStreamInfo->byFrameType)
-	{
-		TRACE("收到音频数据类型:%d，流ID：%d\n", pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
-	}
+	////收到音频数据
+	//if (1 == pStreamInfo->byFrameType)
+	//{
+	//	TRACE("收到音频数据类型:%d，流ID：%d\n", pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
+	//}
 
-	//收到数据流头
-	if (2 == pStreamInfo->byFrameType)
-	{
-		//		TRACE("收到数据流头:%d帧\n", pStreamInfo->byFrameType);
-		TRACE("收到数据流头:帧类型：%d,码流号：%d，码流序号：%d，流类型:%d，流ID:%d\n", pStreamInfo->byFrameType,
-			pStreamInfo->dwStreamId, pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
-		memcpy(pStreamHead, pStreamInfo->pBuffer, pStreamInfo->iBufferSize);
-		//nStreamHeadSize = pStreamInfo->iBufferSize;
-		//		pStreamHead = (tmAvInfo_t*)pStreamHead;
-		//TRACE("收到数据流头:码流号：%d帧，码流序号：%d，流类型:%d，流ID:%d\n", (tmAvInfo_t)pStreamHead->dwStreamId,
-		//	pStreamHead->byVideoIndex);
+	////收到数据流头
+	//if (2 == pStreamInfo->byFrameType)
+	//{
+	//	//		TRACE("收到数据流头:%d帧\n", pStreamInfo->byFrameType);
+	//	TRACE("收到数据流头:帧类型：%d,码流号：%d，码流序号：%d，流类型:%d，流ID:%d\n", pStreamInfo->byFrameType,
+	//		pStreamInfo->dwStreamId, pStreamInfo->dwStreamTag, pStreamInfo->dwStreamId);
+	//	memcpy(pStreamHead, pStreamInfo->pBuffer, pStreamInfo->iBufferSize);
+	//	//nStreamHeadSize = pStreamInfo->iBufferSize;
+	//	//		pStreamHead = (tmAvInfo_t*)pStreamHead;
+	//	//TRACE("收到数据流头:码流号：%d帧，码流序号：%d，流类型:%d，流ID:%d\n", (tmAvInfo_t)pStreamHead->dwStreamId,
+	//	//	pStreamHead->byVideoIndex);
 
-	}
+	//}
 
 	return -1;
 }
@@ -440,69 +492,175 @@ void CRelayRTSPDlg::OnClickedSearchFile()
 void CRelayRTSPDlg::OnClickedStartRtsp()
 {
 	// TODO:  在此添加控件通知处理程序代码
-	CString					str;
-	int						index, iRet;
-	int						count;
-	BOOL					bCancel = FALSE;
-	tmPlayConditionCfg_t	struCond;
-	FileList_t*				pFileList;
-	tmTimeInfo_t*			pTime;
-	SYSTEMTIME				time;
-	POINT					pt;
 
-	//防止重复打开
-	if (m_hPlay != NULL)
-	{
-		::Avdec_CloseFile(m_hPlay);
-		m_hPlay = NULL;
-	}
+	/*  参考RemoteTurnPlayer的代码
+	//CString					str;
+	//int						index;
+	//BOOL					bCancel = FALSE;
+	//tmPlayConditionCfg_t	struCond;
+	//FileList_t*				pFileList;
 
-	//获取当前选中的文件
-	m_listFile.ScreenToClient(&ptFile);
-	index = m_listFile.HitTest(ptFile);
-	if (index < 0)
-	{
-		AfxMessageBox("not select file");//没有选择文件
-		return;
-	}
-	pFileList = (FileList_t*)m_listFile.GetItemData(index);
-	if (pFileList == NULL)
-	{
-		AfxMessageBox("未选中任何文件");//系统错误
-		return;
-	}
+	////防止重复打开
+	//if (m_hPlay != NULL)
+	//{
+	//	::Avdec_CloseFile(m_hPlay);
+	//	m_hPlay = NULL;
+	//}
 
-	//配置参数
-	memset(&struCond, 0, sizeof(tmPlayConditionCfg_t));
-	struCond.dwSize = sizeof(tmPlayConditionCfg_t);
-	struCond.wFactoryId = pFileList->file.wFactoryId;
-	struCond.byChannel = pFileList->file.byChannel;
-	struCond.byPlayImage = FALSE;
-	struCond.byBufferBeforePlay = FALSE;
-	struCond.dwBufferSizeBeforePlay = 1024 * 1024 * 20;
-	struCond.info.time.byBackupData = pFileList->file.byBackupData;
-	struCond.info.time.byDiskName = pFileList->file.byDiskName;
-	struCond.info.time.byCheckStopTime = FALSE;
-	struCond.info.time.struStartTime = pFileList->file.struStartTime;// testTimeStart;//
-	struCond.info.time.struStopTime = pFileList->file.struStopTime;//testTimeEnd;//
-	struCond.info.time.byAlarmType = pFileList->file.byAlarmType;
-	struCond.info.time.byFileFormat = pFileList->file.byFileFormat;
-	struCond.info.time.dwServerPort = m_tNVRLogin.nPort;
-	struCond.byEnableServer = TRUE;	//默认为FALSE
-	struCond.fnStreamReadCallBack = fnDataCallBack;
-	struCond.fnStreamReadContext = this;
-	struCond.byPlayType = REMOTEPLAY_MODE_BUFFILE;//adjusted by tzh  REMOTEPLAY_MODE_READFILE
-	sprintf(struCond.info.time.sServerAddress, "%s", m_tNVRLogin.strIP);
-	sprintf(struCond.info.time.sUserName, "%s", m_tNVRLogin.strName);
-	sprintf(struCond.info.time.sUserPass, "%s", m_tNVRLogin.strPassword);
+	////获取当前选中的文件
+	//m_listFile.ScreenToClient(&ptFile);
+	//index = m_listFile.HitTest(ptFile);
+	//if (index < 0)
+	//{
+	//	AfxMessageBox("not select file");//没有选择文件
+	//	return;
+	//}
+	//pFileList = (FileList_t*)m_listFile.GetItemData(index);
+	//if (pFileList == NULL)
+	//{
+	//	AfxMessageBox("未选中任何文件");//系统错误
+	//	return;
+	//}
 
-	m_hPlay = TMCC_OpenFile(hLogin, &struCond, NULL);
-	//m_hPlay = TMCC_OpenFile(hLogin, &struCond, ((CWnd*)GetDlgItem(IDC_STATUS))->GetSafeHwnd());	//测试用，HWnd为NULL时函数是否可用
-	if (m_hPlay == NULL)
+	//memset(&struCond, 0, sizeof(tmPlayConditionCfg_t));
+	//struCond.dwSize = sizeof(tmPlayConditionCfg_t);
+	//struCond.wFactoryId = pFileList->file.wFactoryId;
+	//struCond.byChannel = pFileList->file.byChannel;
+	//struCond.byPlayImage = FALSE;
+	//struCond.byBufferBeforePlay = FALSE;
+	//struCond.dwBufferSizeBeforePlay = 1024 * 1024 * 20;
+	//struCond.info.time.byBackupData = pFileList->file.byBackupData;
+	//struCond.info.time.byDiskName = pFileList->file.byDiskName;
+	//struCond.info.time.byCheckStopTime = FALSE;
+	//struCond.info.time.struStartTime = pFileList->file.struStartTime;// testTimeStart;//
+	//struCond.info.time.struStopTime = pFileList->file.struStopTime;//testTimeEnd;//
+	//struCond.info.time.byAlarmType = pFileList->file.byAlarmType;
+	//struCond.info.time.byFileFormat = pFileList->file.byFileFormat;
+	//struCond.info.time.dwServerPort = m_tNVRLogin.nPort;
+	//struCond.byEnableServer = TRUE;
+	//struCond.byPlayType = REMOTEPLAY_MODE_READFILE;//add by tzh
+	//sprintf(struCond.info.time.sServerAddress, "%s", m_tNVRLogin.strIP);
+	//sprintf(struCond.info.time.sUserName, "%s", m_tNVRLogin.strName);
+	//sprintf(struCond.info.time.sUserPass, "%s", m_tNVRLogin.strPassword);
+
+	//m_hPlay = ::Avdec_OpenFileA(hLogin, &struCond, NULL);
+	//if (m_hPlay == NULL)
+	//{
+	//	AfxMessageBox("文件打开错误！");//打开文件错误
+	//	return;
+	//}
+
+	////注销消息
+	//::Avdec_GetImageSize(m_hPlay, &m_iImageWidth, &m_iImageHeight);
+	//::Avdec_RegisterStateChangeMessage(m_hPlay, GetSafeHwnd(), WM_PLAYSTATE);
+	//::Avdec_SetMute(m_hPlay, FALSE);
+	//::Avdec_SetVolume(m_hPlay, 10000);
+	//::Avdec_SetDisplayVisible(m_hPlay, TRUE);
+	*/
+
+	// 参考RemotePlayer的代码
+	CString strRTSP = "";
+	GetDlgItemText(IDC_START_RTSP, strRTSP);
+	if ("启动RTSP服务" == strRTSP)
 	{
-		AfxMessageBox("文件打开错误！");//打开文件错误
-		return;
+		//启动服务
+		CString					str;
+		int						index;
+		BOOL					bCancel = FALSE;
+		tmPlayConditionCfg_t	struCond;
+		FileList_t*				pFileList;
+
+		//防止重复打开
+		if (m_hPlay != NULL)
+		{
+			::Avdec_CloseFile(m_hPlay);
+			m_hPlay = NULL;
+		}
+
+		//获取当前选中的文件
+		m_listFile.ScreenToClient(&ptFile);
+		index = m_listFile.HitTest(ptFile);
+		if (index < 0)
+		{
+			AfxMessageBox("not select file");//没有选择文件
+			return;
+		}
+		pFileList = (FileList_t*)m_listFile.GetItemData(index);
+		if (pFileList == NULL)
+		{
+			AfxMessageBox("未选中任何文件");//系统错误
+			return;
+		}
+
+		//配置参数
+		memset(&struCond, 0, sizeof(tmPlayConditionCfg_t));
+		struCond.dwSize = sizeof(tmPlayConditionCfg_t);
+		struCond.wFactoryId = pFileList->file.wFactoryId;
+		struCond.byChannel = pFileList->file.byChannel;
+		struCond.byPlayImage = FALSE;
+		struCond.byBufferBeforePlay = FALSE;
+		struCond.dwBufferSizeBeforePlay = 1024 * 1024 * 20;
+		struCond.info.time.byBackupData = pFileList->file.byBackupData;
+		struCond.info.time.byDiskName = pFileList->file.byDiskName;
+		struCond.info.time.byCheckStopTime = FALSE;
+		struCond.info.time.struStartTime = pFileList->file.struStartTime;// testTimeStart;//
+		struCond.info.time.struStopTime = pFileList->file.struStopTime;//testTimeEnd;//
+		struCond.info.time.byAlarmType = pFileList->file.byAlarmType;
+		struCond.info.time.byFileFormat = pFileList->file.byFileFormat;
+		struCond.info.time.dwServerPort = m_tNVRLogin.nPort;
+		struCond.byEnableServer = TRUE;	//默认为FALSE
+		struCond.fnStreamReadCallBack = fnDataCallBack;
+		struCond.fnStreamReadContext = this;
+		struCond.byPlayType = REMOTEPLAY_MODE_BUFFILE;//adjusted by tzh  REMOTEPLAY_MODE_READFILE
+		sprintf(struCond.info.time.sServerAddress, "%s", m_tNVRLogin.strIP);
+		sprintf(struCond.info.time.sUserName, "%s", m_tNVRLogin.strName);
+		sprintf(struCond.info.time.sUserPass, "%s", m_tNVRLogin.strPassword);
+
+		m_hPlay = TMCC_OpenFile(hLogin, &struCond, NULL);
+		//m_hPlay = TMCC_OpenFile(hLogin, &struCond, ((CWnd*)GetDlgItem(IDC_STATUS))->GetSafeHwnd());	//测试用，HWnd为NULL时函数是否可用
+		if (m_hPlay == NULL)
+		{
+			AfxMessageBox("文件打开错误！");//打开文件错误
+			return;
+		}
+
+		//播放
+		tmPlayControlCfg_t cfg;
+		memset(&cfg, 0, sizeof(tmPlayControlCfg_t));
+		cfg.dwSize = sizeof(tmPlayControlCfg_t);
+		cfg.dwCommand = PLAY_CONTROL_PLAY;
+		::TMCC_ControlFile(m_hPlay, &cfg);
+
+
+		//加入数据并启动服务(不同通道采用不同rtsp的码流号)
+		for (int i = 0; i < m_listFile.GetItemCount(); i++)
+		{
+			//sms = ServerMediaSession::createNew(*env, streamName,
+			//	streamName, descriptionString);
+			//sms->addSubsession(H264LiveVideoServerMediaSubssion::createNew(*env, reuseFirstSource,
+			//	&datasize, databuf, &dosent));//修改为自己实现的H264LiveVideoServerMediaSubssion
+			//rtspServer->addServerMediaSession(sms);
+			str.Format("服务器:%s的通道%d请用如下地址访问：\n%s\\Stream%d", m_tNVRLogin.strIP, i, rtspServer->rtspURL(sms), i);
+
+			((CStatic*)(GetDlgItem(IDC_STATUS)))->SetWindowTextA(str);
+		}
+
+		pRtspThread = AfxBeginThread(ThreadRTSPEvent, this);		//启动RTSP服务线程(循环响应消息)
+
+		((CButton*)GetDlgItem(IDC_START_RTSP))->SetWindowTextA("停止RTSP服务");
 	}
+	else
+	{
+		sms = NULL;
+		if (NULL != pRtspThread)
+		{
+			TerminateThread(pRtspThread->m_hThread, 0);	//结束消息响应线程
+			pRtspThread = NULL;
+		}
+		((CButton*)GetDlgItem(IDC_START_RTSP))->SetWindowTextA("启动RTSP服务");
+	}
+	
+
 
 	//TMCC_RegisterStreamCallBack(m_hPlay, fnDataCallBack, this);
 }
@@ -591,7 +749,7 @@ _exit:
 }
 
 //设置文件位置
- int CRelayRTSPDlg::OnRemoteFileSeek(HANDLE hObject, int offset, int origin, int* pPosition, unsigned int* pTimeStamp, void* context)
+int CRelayRTSPDlg::OnRemoteFileSeek(HANDLE hObject, int offset, int origin, int* pPosition, unsigned int* pTimeStamp, void* context)
 {
 	int					iResult = 0, iPosition = 0;
 	float				fTimeStamp = 0.0;
@@ -647,13 +805,6 @@ _exit:
 	return iResult;
 }
 
-//播放状态回掉函数
-LRESULT CRelayRTSPDlg::OnPlayStateMessage(WPARAM wParam, LPARAM lParam)
-{
-	TRACE("wParam = %d,lParam = %d\n", wParam, lParam);
-	return 0;
-}
-
 //远程文件读取回调函数
 int WINAPI CRelayRTSPDlg::fnDataCallBack(HANDLE hTmCC, tmRealStreamInfo_t* pStreamInfo, void *context)
 {
@@ -676,7 +827,7 @@ UINT CRelayRTSPDlg::FileSearchProcLoop(int iControlType)
 	SYSTEMTIME				time;
 	HANDLE					hSearch = NULL;
 
-	m_listFile.DeleteAllItems();
+	m_listFile.DeleteAllItems();	//清空原内容
 
 	memset(&file, 0, sizeof(tmFindFileCfg_t));
 	file.dwSize = sizeof(tmFindFileCfg_t);
@@ -736,7 +887,6 @@ UINT CRelayRTSPDlg::FileSearchProcLoop(int iControlType)
 	{
 		FileList_t*		pFirst = m_pFileList;
 		FileList_t*		pNext = m_pFileList;
-		tmTimeInfo_t	struTail;
 
 		while (pNext->next != NULL)
 		{
@@ -799,42 +949,6 @@ void CRelayRTSPDlg::OnClickFileList(NMHDR *pNMHDR, LRESULT *pResult)
 	*pResult = 0;
 }
 
-
-void CRelayRTSPDlg::OnBnClickedOk()
-{
-	// TODO:  在此添加控件通知处理程序代码
-
-	//if (NULL != m_hPlay)
-	//{
-	//	TMCC_CloseFile(m_hPlay);
-	//	m_hPlay = NULL;
-	//}
-	//if (NULL != hLogin)
-	//{
-	//	TMCC_Done(hLogin);
-	//	hLogin = NULL;
-	//}
-
-	////释放RTSP服务资源
-	////BasicTaskScheduler::
-	//if (NULL != env)
-	//{
-	//	if (False == env->reclaim())
-	//	{
-	//		AfxMessageBox("RTSP服务内存资源释放错误");
-	//	}
-	//}
-
-	//if (NULL != pStreamHead)
-	//{
-	//	delete pStreamHead;
-	//	pStreamHead = NULL;
-	//}
-
-	CDialogEx::OnOK();
-}
-
-
 void CRelayRTSPDlg::OnDestroy()
 {
 	CDialogEx::OnDestroy();
@@ -857,7 +971,9 @@ void CRelayRTSPDlg::OnDestroy()
 	{
 		if (False == env->reclaim())
 		{
-			AfxMessageBox("RTSP服务内存资源释放错误");
+			TRACE0("RTSP服务内存资源释放错误");
+			//AfxMessageBox();
+			//OutputDebugStringA("RTSP服务内存资源释放错误");
 		}
 	}
 
@@ -866,4 +982,11 @@ void CRelayRTSPDlg::OnDestroy()
 		delete pStreamHead;
 		pStreamHead = NULL;
 	}
+
+	//结束线程
+	if (NULL != pRtspThread)
+	{
+		TerminateThread(pRtspThread->m_hThread, 0);	//结束消息响应线程
+	}
+
 }

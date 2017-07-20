@@ -23,7 +23,7 @@ H264LiveVideoServerMediaSubssion::~H264LiveVideoServerMediaSubssion()
 {
 }
 FramedSource* H264LiveVideoServerMediaSubssion::createNewStreamSource(unsigned
-clientSessionId, unsigned& estBitrate)
+	clientSessionId, unsigned& estBitrate)
 {
 	/* Remain to do : assign estBitrate */
 	estBitrate = 1000; // kbps, estimate

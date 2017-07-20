@@ -43,11 +43,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\live\BasicUsageEnvironment\include;C:\live\groupsock\include;C:\live\liveMedia\include;C:\live\UsageEnvironment\include;$(ProjectDir)\inc;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\live\BasicUsageEnvironment;C:\live\groupsock;C:\live\liveMedia;C:\live\UsageEnvironment;$(ProjectDir)\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\live\liveMedia\include;C:\live\BasicUsageEnvironment\include;C:\live\groupsock\include;C:\live\UsageEnvironment\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\live\BasicUsageEnvironment;C:\live\groupsock;C:\live\liveMedia;C:\live\UsageEnvironment;.\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>true</LinkIncremental>
+    <IncludePath>C:\live\liveMedia\include;C:\live\BasicUsageEnvironment\include;C:\live\groupsock\include;C:\live\UsageEnvironment\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\live\BasicUsageEnvironment;C:\live\groupsock;C:\live\liveMedia;C:\live\UsageEnvironment;.\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -61,7 +63,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libUsageEnvironment.lib;libliveMedia.lib;libgroupsock.lib;libBasicUsageEnvironment.lib;tmControlClient.lib</AdditionalDependencies>
+      <AdditionalDependencies>libUsageEnvironment.lib;libliveMedia.lib;libgroupsock.lib;libBasicUsageEnvironment.lib;tmControlClient.lib;/NODEFAULTLIB:msvcrt.lib</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -81,7 +83,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
@@ -90,6 +92,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>libUsageEnvironment.lib;libliveMedia.lib;libgroupsock.lib;libBasicUsageEnvironment.lib;tmControlClient.lib</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -118,9 +121,11 @@
   <ItemGroup>
     <ClCompile Include="H264FramedLiveSource.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="H264LiveVideoServerMediaSubssion.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RelayRTSP.cpp" />
     <ClCompile Include="RelayRTSPDlg.cpp" />

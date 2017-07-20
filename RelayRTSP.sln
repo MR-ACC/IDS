@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.21005.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RelayRTSP", "RelayRTSP\RelayRTSP.vcxproj", "{09933AB8-DC72-432C-99C2-D6C3C9C1E469}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ProxyNVR", "ProxyNVR\ProxyNVR.vcxproj", "{66528CF5-9ABA-4C5E-A30B-0AC81FBC67FE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -15,6 +17,10 @@ Global
 		{09933AB8-DC72-432C-99C2-D6C3C9C1E469}.Debug|Win32.Build.0 = Debug|Win32
 		{09933AB8-DC72-432C-99C2-D6C3C9C1E469}.Release|Win32.ActiveCfg = Release|Win32
 		{09933AB8-DC72-432C-99C2-D6C3C9C1E469}.Release|Win32.Build.0 = Release|Win32
+		{66528CF5-9ABA-4C5E-A30B-0AC81FBC67FE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{66528CF5-9ABA-4C5E-A30B-0AC81FBC67FE}.Debug|Win32.Build.0 = Debug|Win32
+		{66528CF5-9ABA-4C5E-A30B-0AC81FBC67FE}.Release|Win32.ActiveCfg = Release|Win32
+		{66528CF5-9ABA-4C5E-A30B-0AC81FBC67FE}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

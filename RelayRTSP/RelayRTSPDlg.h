@@ -2,7 +2,7 @@
 // RelayRTSPDlg.h : 头文件
 //
 
-#include <GroupsockHelper.hh>
+#include "GroupsockHelper.hh"
 #include "liveMedia.hh"
 #include "BasicUsageEnvironment.hh"
 #include "UsageEnvironment.hh"
@@ -57,6 +57,18 @@ typedef struct tagRemoteFile_t
 	int		iFrameLen;
 }RemoteFile_t;
 
+//RTSP服务参数
+typedef struct tagRtspServer_t
+{
+	UserAuthenticationDatabase *auThDB;		//用户信息
+	RTSPServer *server;						//服务器
+	int port;								//服务器段口号
+	int datasize;							//数据区长度
+	unsigned char* databuf;					//数据区指针
+	ServerMediaSession* sms;				//会话
+}RtspServer_t;
+
+
 // CRelayRTSPDlg 对话框
 class CRelayRTSPDlg : public CDialogEx
 {
@@ -80,7 +92,8 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
-	afx_msg LRESULT OnPlayStateMessage(WPARAM wParam, LPARAM lParam);
+	//afx_msg LRESULT OnPlayStateMessage(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnReceiveFrame(WPARAM w, LPARAM p);
 	DECLARE_MESSAGE_MAP();
 
 private:	
@@ -107,8 +120,11 @@ private:
 	int nStreamHeadSize;
 
 	//RTSP服务相关
-	Boolean reuseFirstSource;	//如果为“true”则其他接入的客户端跟第一个客户端看到一样的视频流，否则\
-		其他客户端接入的时候将重新播放
+	RTSPServer * rtspServer;		//服务器
+	UserAuthenticationDatabase *auThDB;		// 用户信息
+	ServerMediaSession* sms;
+
+	Boolean reuseFirstSource;	//如果为“true”则其他接入的客户端跟第一个客户端看到一样的视频流，否则其他客户端接入的时候将重新播放
 	char const* streamName = "h264ESVideoTest";
 	char const* descriptionString = "Session streamed by \"RTSP Relay Server!\"";
 	int datasize;//数据区长度
@@ -116,6 +132,7 @@ private:
 	bool dosent;//rtsp发送标志位，为true则发送，否则退出
 
 private:
+	void AddToRtspServer(UsageEnvironment* u_env, RtspServer_t serv);
 	void startReplicaUDPSink(StreamReplicator* replicator, char const* outputAddressStr, portNumBits outputPortNum); // forward
 	void startReplicaFileSink(StreamReplicator* replicator, char const* outputFileName); // forward
 
@@ -134,7 +151,10 @@ protected:
 	//NVR登陆相关参数
 	NVRLogin_t m_tNVRLogin;
 
-	//string myTestString;
+	//RTSP
+	CWinThread *pRtspThread;
+	static UINT ThreadRTSPEvent(void* context);
+	UINT RTSPEvent();
 
 public:
 	afx_msg void OnClose();
@@ -155,6 +175,5 @@ public:
 	afx_msg void OnClickedSearchFile();
 	afx_msg void OnClickedStartRtsp();
 	afx_msg void OnClickFileList(NMHDR *pNMHDR, LRESULT *pResult);
-	afx_msg void OnBnClickedOk();
 	afx_msg void OnDestroy();
 };
