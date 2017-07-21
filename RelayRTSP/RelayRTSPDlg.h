@@ -12,6 +12,7 @@
 #include "H264LiveVideoServerMediaSubssion.hh"
 #include "H264FramedLiveSource.hh"
 #include "RemotePlayerCom.h"
+#include "data.h"
 
 //#include <string>
 //using namespace std;

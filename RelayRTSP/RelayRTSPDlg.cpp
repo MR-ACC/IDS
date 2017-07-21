@@ -631,10 +631,27 @@ void CRelayRTSPDlg::OnClickedStartRtsp()
 		cfg.dwCommand = PLAY_CONTROL_PLAY;
 		::TMCC_ControlFile(m_hPlay, &cfg);
 
+		//测试用
+		//sms = ServerMediaSession::createNew(*env, streamName,
+		//	streamName, descriptionString);
+		//sms->addSubsession(H264LiveVideoServerMediaSubssion::createNew(*env, reuseFirstSource,
+		//	&datasize, databuf, &dosent));//修改为自己实现的H264LiveVideoServerMediaSubssion
+		//rtspServer->addServerMediaSession(sms);
+		//str.Format("请用如下地址访问：%s\n", rtspServer->rtspURL(sms));
 
-		//加入数据并启动服务(不同通道采用不同rtsp的码流号)
+		//TRACE0(str);
+		//((CStatic*)(GetDlgItem(IDC_STATUS)))->SetWindowTextA(str); rtsp://192.168.1.199:8002/h264ESVideoTest
+
+		//
+		int nCountNVR =  ::GetPrivateProfileInt("global", "port", 6002, "./NVR.ini");
+		char ss[128];
+		::GetPrivateProfileString("global", "IP", "192.168.1.122", ss, 128, "./NVR_Config.ini");
+		
+
+		//加入数据并启动服务(不同NVR服务器采用不同rtsp的码流号)
 		for (int i = 0; i < m_listFile.GetItemCount(); i++)
 		{
+			sprintf(ss, "Stream-%d", i);	//码流号
 			//sms = ServerMediaSession::createNew(*env, streamName,
 			//	streamName, descriptionString);
 			//sms->addSubsession(H264LiveVideoServerMediaSubssion::createNew(*env, reuseFirstSource,
