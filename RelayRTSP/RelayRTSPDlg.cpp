@@ -145,30 +145,33 @@ BOOL CRelayRTSPDlg::OnInitDialog()
 	((CButton*)GetDlgItem(IDC_START_RTSP))->EnableWindow(false);
 	//DWORD dwStyle = m_listFile.GetStyle();
 	m_listFile.SetExtendedStyle(m_listFile.GetExtendedStyle() | LVS_EX_FULLROWSELECT);
-	m_listFile.InsertColumn(0, "文件列表", LVCFMT_LEFT, 500, 0);
+	m_listFile.InsertColumn(0, "文件列表", LVCFMT_LEFT, 500, 0); 
 
 	//读取默认的ini文件，配置NVR和RTSP服务
-	m_tNVRLogin.nPort = ::GetPrivateProfileInt("global", "port", 6002, "./NVR_Config.ini");
-	m_tNVRLogin.nChannelCount = ::GetPrivateProfileInt("global", "camera_Channel_Count", 12, "./NVR_Config.ini");
 	char ss[128];
-	::GetPrivateProfileString("global", "IP", "192.168.1.122", ss, 128, "./NVR_Config.ini");
-	m_tNVRLogin.strIP.Format("%s", ss);
-	::GetPrivateProfileString("global", "user_name", "system", ss, 128, "./NVR_Config.ini");
-	m_tNVRLogin.strName.Format("%s", ss);
-	::GetPrivateProfileString("global", "user_password", "system", ss, 128, "./NVR_Config.ini");
-	m_tNVRLogin.strPassword.Format("%s", ss);
-	::GetPrivateProfileString("global", "TYPE", "1600*1200", ss, 128, "./NVR_Config.ini");
-	m_tNVRLogin.strVideoType.Format("%s", ss);
+	m_tNVRLogin.nRtspServerPort = ::GetPrivateProfileInt("RTSP", "server_port", 8554, "./RTSP.ini");
 
+	::GetPrivateProfileString("NVR", "TYPE", "D1", ss, 128, "./RTSP.ini");
+	m_tNVRLogin.strVideoType.Format("%s", ss);
+	::GetPrivateProfileString("NVR", "nvr_IP", "192.168.1.125", ss, 128, "./RTSP.ini");
+	m_tNVRLogin.strNVR_IP.Format("%s", ss);
+	m_tNVRLogin.nCountVideoChannel = ::GetPrivateProfileInt("NVR", "camera_Count", -1, "./RTSP.ini");
+	m_tNVRLogin.nNVRPort = ::GetPrivateProfileInt("NVR", "nvr_port", 6002, "./RTSP.ini");
+	::GetPrivateProfileString("NVR", "user_name", "system", ss, 128, "./RTSP.ini");
+	m_tNVRLogin.strUserName.Format("%s", ss);
+	::GetPrivateProfileString("NVR", "user_password", "system", ss, 128, "./RTSP.ini");
+	m_tNVRLogin.strUserPassword.Format("%s", ss);
 	//设置初始IP
-	m_strNVRIPAddress = m_tNVRLogin.strIP;
+	m_strNVRIPAddress = m_tNVRLogin.strNVR_IP;
 	((CEdit*)(GetDlgItem(IDC_NVR_IPADDRESS1)))->SetWindowTextA(m_strNVRIPAddress);
+	sprintf_s(ss,"本rtsp服务端口号:%d", m_tNVRLogin.nRtspServerPort);
+	((CStatic*)GetDlgItem(IDC_STATUS))->SetWindowTextA(ss);
 
 	//初始化通道号
 	m_combNVRChannel.ResetContent();
 	//((CComboBox*)GetDlgItem(IDC_NVRCHANNEL))->ResetContent();
 	CString strTemp = "";
-	for (int i = 0; i <= m_tNVRLogin.nChannelCount; i++)
+	for (int i = 0; i <= m_tNVRLogin.nCountVideoChannel; i++)
 	{
 		strTemp.Format("%d", i);
 		m_combNVRChannel.InsertString(-1, strTemp);
@@ -441,10 +444,10 @@ void CRelayRTSPDlg::OnClickedConnectToNVR()
 	// TODO:  在此添加控件通知处理程序代码
 	memset(&tmLogin, 0, sizeof(tmConnectInfo_t));
 	tmLogin.dwSize = sizeof(tmConnectCfg_t);
-	tmLogin.iPort = m_tNVRLogin.nPort;
+	tmLogin.iPort = m_tNVRLogin.nRtspServerPort;
 	strcpy(tmLogin.pIp, m_strNVRIPAddress);
-	sprintf(tmLogin.szUser, m_tNVRLogin.strName);
-	sprintf(tmLogin.szPass, m_tNVRLogin.strPassword);
+	sprintf(tmLogin.szUser, m_tNVRLogin.strUserName);
+	sprintf(tmLogin.szPass, m_tNVRLogin.strUserPassword);
 	//设置连接超时值
 	TMCC_SetTimeOut(hLogin, 3000);
 	//注册登录状态回调
@@ -607,14 +610,14 @@ void CRelayRTSPDlg::OnClickedStartRtsp()
 		struCond.info.time.struStopTime = pFileList->file.struStopTime;//testTimeEnd;//
 		struCond.info.time.byAlarmType = pFileList->file.byAlarmType;
 		struCond.info.time.byFileFormat = pFileList->file.byFileFormat;
-		struCond.info.time.dwServerPort = m_tNVRLogin.nPort;
+		struCond.info.time.dwServerPort = m_tNVRLogin.nRtspServerPort;
 		struCond.byEnableServer = TRUE;	//默认为FALSE
 		struCond.fnStreamReadCallBack = fnDataCallBack;
 		struCond.fnStreamReadContext = this;
 		struCond.byPlayType = REMOTEPLAY_MODE_BUFFILE;//adjusted by tzh  REMOTEPLAY_MODE_READFILE
-		sprintf(struCond.info.time.sServerAddress, "%s", m_tNVRLogin.strIP);
-		sprintf(struCond.info.time.sUserName, "%s", m_tNVRLogin.strName);
-		sprintf(struCond.info.time.sUserPass, "%s", m_tNVRLogin.strPassword);
+		sprintf(struCond.info.time.sServerAddress, "%s", m_tNVRLogin.strNVR_IP);
+		sprintf(struCond.info.time.sUserName, "%s", m_tNVRLogin.strUserName);
+		sprintf(struCond.info.time.sUserPass, "%s", m_tNVRLogin.strUserPassword);
 
 		m_hPlay = TMCC_OpenFile(hLogin, &struCond, NULL);
 		//m_hPlay = TMCC_OpenFile(hLogin, &struCond, ((CWnd*)GetDlgItem(IDC_STATUS))->GetSafeHwnd());	//测试用，HWnd为NULL时函数是否可用
@@ -657,7 +660,7 @@ void CRelayRTSPDlg::OnClickedStartRtsp()
 			//sms->addSubsession(H264LiveVideoServerMediaSubssion::createNew(*env, reuseFirstSource,
 			//	&datasize, databuf, &dosent));//修改为自己实现的H264LiveVideoServerMediaSubssion
 			//rtspServer->addServerMediaSession(sms);
-			str.Format("服务器:%s的通道%d请用如下地址访问：\n%s\\Stream%d", m_tNVRLogin.strIP, i, rtspServer->rtspURL(sms), i);
+			str.Format("服务器:%s的通道%d请用如下地址访问：\n%s\\Stream%d", m_tNVRLogin.strNVR_IP, i, rtspServer->rtspURL(sms), i);
 
 			((CStatic*)(GetDlgItem(IDC_STATUS)))->SetWindowTextA(str);
 		}
@@ -877,10 +880,10 @@ UINT CRelayRTSPDlg::FileSearchProcLoop(int iControlType)
 	cond.byEnableServer = 1;
 	cond.byOldServer = TRUE;
 	cond.byBackupData = FALSE;
-	cond.dwServerPort = m_tNVRLogin.nPort;
+	cond.dwServerPort = m_tNVRLogin.nRtspServerPort;
 	sprintf(cond.sServerAddress, "%s", m_strNVRIPAddress);
-	sprintf(cond.sUserName, "%s", m_tNVRLogin.strName);
-	sprintf(cond.sUserPass, "%s", m_tNVRLogin.strPassword);
+	sprintf(cond.sUserName, "%s", m_tNVRLogin.strUserName);
+	sprintf(cond.sUserPass, "%s", m_tNVRLogin.strUserPassword);
 	hSearch = TMCC_FindFirstFile(hLogin, &cond, &file);
 	if (hSearch == NULL)
 	{

@@ -33,16 +33,6 @@ typedef struct tagFileList_t
 	BOOL					bImage;
 }FileList_t;
 
-typedef struct tagNVRLogin_t
-{
-	CString strIP;
-	int nPort;
-	CString strName;
-	CString strPassword;
-	int nChannelCount;
-	CString strVideoType;
-}NVRLogin_t;
-
 #define HEAD_MAX_LEN		1024
 typedef struct tagRemoteFile_t
 {
